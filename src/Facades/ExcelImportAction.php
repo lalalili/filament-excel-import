@@ -5,12 +5,12 @@ namespace EightyNine\ExcelImport\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @see \EightyNine\ExcelImportAction\ExcelImportAction
+ * @see \EightyNine\ExcelImport\ExcelImportAction
  */
 class ExcelImportAction extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return \EightyNine\ExcelImportAction\ExcelImportAction::class;
+        return \EightyNine\ExcelImport\ExcelImportAction::class;
     }
 }
