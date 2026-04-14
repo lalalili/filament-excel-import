@@ -85,18 +85,18 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
         }
 
         $firstRow = $collection->first();
-        if (!$firstRow) {
+        if (! $firstRow) {
             $this->stopImportWithError(__('excel-import::excel-import.header_read_error'));
         }
 
-        $actualHeaders = array_keys($firstRow->toArray());
+        $actualHeaders = array_keys(is_array($firstRow) ? $firstRow : $firstRow->toArray());
         $missingHeaders = array_diff($expectedHeaders, $actualHeaders);
-        
-        if (!empty($missingHeaders)) {
+
+        if (! empty($missingHeaders)) {
             $this->stopImportWithError(
                 __('excel-import::excel-import.missing_headers_error', [
                     'missing' => implode(', ', $missingHeaders),
-                    'expected' => implode(', ', $expectedHeaders)
+                    'expected' => implode(', ', $expectedHeaders),
                 ])
             );
         }
@@ -107,7 +107,7 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
      */
     protected function validateCustomCondition(bool $condition, string $errorMessage): void
     {
-        if (!$condition) {
+        if (! $condition) {
             $this->stopImportWithError($errorMessage);
         }
     }
@@ -137,12 +137,12 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
                         $data
                     );
                 }
-                
+
                 // Allow custom validation before creating each record
                 $this->beforeCreateRecord($data, $row);
-                
+
                 $this->model::create($data);
-                
+
                 // Allow custom actions after creating each record
                 $this->afterCreateRecord($data, $row);
             }

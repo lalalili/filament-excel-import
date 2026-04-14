@@ -4,6 +4,8 @@ namespace EightyNine\ExcelImport\Concerns;
 
 use Closure;
 use EightyNine\ExcelImport\DefaultImport;
+use EightyNine\ExcelImport\Exceptions\ImportStoppedException;
+use Filament\Notifications\Notification;
 use Maatwebsite\Excel\Facades\Excel;
 
 trait HasExcelImportAction
@@ -47,7 +49,7 @@ trait HasExcelImportAction
 
         $this->icon('heroicon-o-arrow-down-tray')
             ->color('warning')
-            ->form(fn () => $this->getDefaultForm())
+            ->schema(fn () => $this->getDefaultForm())
             ->modalIcon('heroicon-o-arrow-down-tray')
             ->color('success')
             ->modalWidth('md')
@@ -71,11 +73,11 @@ trait HasExcelImportAction
                 $this->additionalData
             );
 
-            if (method_exists($importObject, 'setAdditionalData') && isset($this->additionalData)) {
+            if (method_exists($importObject, 'setAdditionalData') && ($this->additionalData !== [])) {
                 $importObject->setAdditionalData($this->additionalData);
             }
 
-            if (method_exists($importObject, 'setCustomImportData') && isset($this->customImportData)) {
+            if (method_exists($importObject, 'setCustomImportData') && ($this->customImportData !== [])) {
                 $importObject->setCustomImportData($this->customImportData);
             }
 
@@ -98,29 +100,29 @@ trait HasExcelImportAction
                     call_user_func($this->afterImportClosure, $data, $livewire);
                 }
 
-                \Filament\Notifications\Notification::make()
+                Notification::make()
                     ->success()
                     ->title(__('excel-import::excel-import.import_success'))
                     ->body(__('excel-import::excel-import.import_success_message'))
                     ->send();
 
                 return true;
-            } catch (\EightyNine\ExcelImport\Exceptions\ImportStoppedException $e) {
+            } catch (ImportStoppedException $e) {
                 // Handle stopped import with user message
                 $notification = match ($e->getType()) {
-                    'warning' => \Filament\Notifications\Notification::make()
+                    'warning' => Notification::make()
                         ->warning()
                         ->title(__('excel-import::excel-import.import_warning'))
                         ->body($e->getUserMessage()),
-                    'info' => \Filament\Notifications\Notification::make()
+                    'info' => Notification::make()
                         ->info()
                         ->title(__('excel-import::excel-import.import_information'))
                         ->body($e->getUserMessage()),
-                    'success' => \Filament\Notifications\Notification::make()
+                    'success' => Notification::make()
                         ->success()
                         ->title(__('excel-import::excel-import.import_success'))
                         ->body($e->getUserMessage()),
-                    default => \Filament\Notifications\Notification::make()
+                    default => Notification::make()
                         ->danger()
                         ->title(__('excel-import::excel-import.import_failed'))
                         ->body($e->getUserMessage()),
@@ -130,7 +132,7 @@ trait HasExcelImportAction
 
                 // Stop the modal from closing if we have an error
                 $this->halt();
-                
+
                 return false;
             }
         };

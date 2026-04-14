@@ -4,6 +4,7 @@ namespace EightyNine\ExcelImport;
 
 use Closure;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Arr;
@@ -85,12 +86,7 @@ class DefaultRelationshipImport implements ToCollection, WithHeadingRow
                     $data = Arr::except($data, $pivotColumns);
                 }
 
-                if ($this->table && ($translatableContentDriver = $this->table->makeTranslatableContentDriver())) {
-                    $record = $translatableContentDriver->makeRecord($this->model, $data);
-                } else {
-                    $record = new $this->model;
-                    $record->fill($data);
-                }
+                $record = $this->makeRecord($data);
 
                 if (
                     (! $this->relationship) ||
@@ -107,11 +103,27 @@ class DefaultRelationshipImport implements ToCollection, WithHeadingRow
                     continue;
                 }
 
-                /** @phpstan-ignore-next-line */
                 $this->relationship->save($record);
             }
         }
 
         return $collection;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function makeRecord(array $data): Model
+    {
+        $translatableContentDriver = $this->table?->getLivewire()?->makeFilamentTranslatableContentDriver();
+
+        if ($translatableContentDriver) {
+            return $translatableContentDriver->makeRecord($this->model, $data);
+        }
+
+        $record = new $this->model;
+        $record->fill($data);
+
+        return $record;
     }
 }

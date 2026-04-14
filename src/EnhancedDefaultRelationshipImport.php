@@ -5,6 +5,7 @@ namespace EightyNine\ExcelImport;
 use Closure;
 use EightyNine\ExcelImport\Exceptions\ImportStoppedException;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Arr;
@@ -91,18 +92,18 @@ class EnhancedDefaultRelationshipImport implements ToCollection, WithHeadingRow
         }
 
         $firstRow = $collection->first();
-        if (!$firstRow) {
+        if (! $firstRow) {
             $this->stopImportWithError(__('excel-import::excel-import.header_read_error'));
         }
 
-        $actualHeaders = array_keys($firstRow->toArray());
+        $actualHeaders = array_keys(is_array($firstRow) ? $firstRow : $firstRow->toArray());
         $missingHeaders = array_diff($expectedHeaders, $actualHeaders);
-        
-        if (!empty($missingHeaders)) {
+
+        if (! empty($missingHeaders)) {
             $this->stopImportWithError(
                 __('excel-import::excel-import.missing_headers_error', [
                     'missing' => implode(', ', $missingHeaders),
-                    'expected' => implode(', ', $expectedHeaders)
+                    'expected' => implode(', ', $expectedHeaders),
                 ])
             );
         }
@@ -113,7 +114,7 @@ class EnhancedDefaultRelationshipImport implements ToCollection, WithHeadingRow
      */
     protected function validateCustomCondition(bool $condition, string $errorMessage): void
     {
-        if (!$condition) {
+        if (! $condition) {
             $this->stopImportWithError($errorMessage);
         }
     }
@@ -161,12 +162,7 @@ class EnhancedDefaultRelationshipImport implements ToCollection, WithHeadingRow
                     $data = Arr::except($data, $pivotColumns);
                 }
 
-                if ($this->table && ($translatableContentDriver = $this->table->makeTranslatableContentDriver())) {
-                    $record = $translatableContentDriver->makeRecord($this->model, $data);
-                } else {
-                    $record = new $this->model;
-                    $record->fill($data);
-                }
+                $record = $this->makeRecord($data);
 
                 if (
                     (! $this->relationship) ||
@@ -174,16 +170,17 @@ class EnhancedDefaultRelationshipImport implements ToCollection, WithHeadingRow
                 ) {
                     $record->save();
                     $this->afterCreateRecord($data, $row, $record);
+
                     continue;
                 }
 
                 if ($this->relationship instanceof BelongsToMany) {
                     $this->relationship->save($record, $pivotData);
                     $this->afterCreateRecord($data, $row, $record);
+
                     continue;
                 }
 
-                /** @phpstan-ignore-next-line */
                 $this->relationship->save($record);
                 $this->afterCreateRecord($data, $row, $record);
             }
@@ -229,5 +226,22 @@ class EnhancedDefaultRelationshipImport implements ToCollection, WithHeadingRow
     protected function afterCollection(Collection $collection): void
     {
         // Override in custom import classes
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function makeRecord(array $data): Model
+    {
+        $translatableContentDriver = $this->table?->getLivewire()?->makeFilamentTranslatableContentDriver();
+
+        if ($translatableContentDriver) {
+            return $translatableContentDriver->makeRecord($this->model, $data);
+        }
+
+        $record = new $this->model;
+        $record->fill($data);
+
+        return $record;
     }
 }
