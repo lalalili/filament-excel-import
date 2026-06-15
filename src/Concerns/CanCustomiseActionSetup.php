@@ -8,6 +8,8 @@ trait CanCustomiseActionSetup
 
     protected bool $storeFiles = false;
 
+    protected bool $shouldSendImportSuccessNotification = true;
+
     public function acceptedFileTypes(array $types): static
     {
         $this->acceptedFileTypes = $types;
@@ -15,9 +17,16 @@ trait CanCustomiseActionSetup
         return $this;
     }
 
-    public function storeFiles(bool $storeFiles): static
+    public function storeFiles(bool $storeFiles = true): static
     {
         $this->storeFiles = $storeFiles;
+
+        return $this;
+    }
+
+    public function sendSuccessNotification(bool $condition = true): static
+    {
+        $this->shouldSendImportSuccessNotification = $condition;
 
         return $this;
     }

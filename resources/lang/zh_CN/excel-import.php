@@ -7,19 +7,25 @@ return [
     'import_action_description' => '从Excel文件导入数据到数据库',
     'excel_data' => 'Excel数据',
     'download_sample_excel_file' => '下载Excel模板文件',
-    
+    'preview_rows' => '数据预览',
+    'preview_waiting_for_upload' => '上传文件后可预览前几行数据。',
+    'preview_empty' => '上传文件中没有可预览的数据行。',
+    'preview_unavailable' => '无法预览上传的文件。',
+
     // 导入状态消息
     'import_failed' => '导入失败',
     'import_warning' => '导入警告',
     'import_information' => '导入信息',
     'import_success' => '导入成功',
+    'import_queued' => '导入已排入队列',
 
     // 成功消息
     'import_success_message' => '导入已成功完成',
-    
+    'import_queued_message' => '导入已排入队列，将在后台处理。',
+
     // 验证消息
     'validation_failed' => '第 :row 行验证失败。返回以下错误信息：:messages',
-    
+
     // 文件验证错误
     'file_empty_error' => '上传的文件为空或没有有效数据。',
     'header_read_error' => '无法读取上传文件的标题行。',

@@ -10,6 +10,8 @@ trait HasFormActionHooks
 
     protected ?Closure $afterImportClosure = null;
 
+    protected ?Closure $afterImportResultClosure = null;
+
     protected array $additionalData = [];
 
     protected array $customImportData = [];
@@ -38,6 +40,13 @@ trait HasFormActionHooks
     public function afterImport(Closure $closure): static
     {
         $this->afterImportClosure = $closure;
+
+        return $this;
+    }
+
+    public function afterImportResult(Closure $closure): static
+    {
+        $this->afterImportResultClosure = $closure;
 
         return $this;
     }

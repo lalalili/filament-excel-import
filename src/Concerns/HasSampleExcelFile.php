@@ -62,6 +62,13 @@ trait HasSampleExcelFile
         $this->sampleButtonLabel = $label;
     }
 
+    public function sampleButtonLabel(?string $label): static
+    {
+        $this->setSampleButtonLabel($label);
+
+        return $this;
+    }
+
     protected function getSampleExcelButton()
     {
         $action = Action::make($this->sampleButtonLabel ?: __('excel-import::excel-import.download_sample_excel_file'));
@@ -89,6 +96,11 @@ trait HasSampleExcelFile
         ?string $sampleButtonLabel = null,
         ?Closure $customiseActionUsing = null
     ): static {
+        if ($exportClass !== null && $sampleButtonLabel === null && $this->looksLikeSampleButtonLabel($exportClass)) {
+            $sampleButtonLabel = $exportClass;
+            $exportClass = null;
+        }
+
         $this->setSampleData($sampleData);
         $this->setSampleFileName($fileName ?: $this->sampleFileName);
         $this->setDefaultExportClass($exportClass ?: $this->defaultExportClass);
@@ -96,6 +108,20 @@ trait HasSampleExcelFile
         $this->setActionCustomisationClosure($customiseActionUsing);
 
         return $this;
+    }
+
+    public function sampleColumns(
+        array $columns,
+        ?string $fileName = null,
+        ?string $sampleButtonLabel = null,
+        ?Closure $customiseActionUsing = null
+    ): static {
+        return $this->sampleExcel(
+            sampleData: [array_fill_keys($columns, '')],
+            fileName: $fileName,
+            sampleButtonLabel: $sampleButtonLabel,
+            customiseActionUsing: $customiseActionUsing,
+        );
     }
 
     public function sampleFileExcel(
@@ -108,5 +134,10 @@ trait HasSampleExcelFile
         $this->setActionCustomisationClosure($customiseActionUsing);
 
         return $this;
+    }
+
+    private function looksLikeSampleButtonLabel(string $value): bool
+    {
+        return ! class_exists($value) && ! str_contains($value, '\\');
     }
 }

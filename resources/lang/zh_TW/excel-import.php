@@ -7,19 +7,25 @@ return [
     'import_action_description' => '從Excel檔案匯入資料到資料庫',
     'excel_data' => 'Excel資料',
     'download_sample_excel_file' => '下載Excel範本檔案',
-    
+    'preview_rows' => '資料預覽',
+    'preview_waiting_for_upload' => '上傳檔案後可預覽前幾列資料。',
+    'preview_empty' => '上傳檔案中沒有可預覽的資料列。',
+    'preview_unavailable' => '無法預覽上傳的檔案。',
+
     // 匯入狀態訊息
     'import_failed' => '匯入失敗',
     'import_warning' => '匯入警告',
     'import_information' => '匯入資訊',
     'import_success' => '匯入成功',
+    'import_queued' => '匯入已排入佇列',
 
     // 成功訊息
     'import_success_message' => '匯入已成功完成',
-    
+    'import_queued_message' => '匯入已排入佇列，將於背景處理。',
+
     // 驗證訊息
     'validation_failed' => '第 :row 行驗證失敗。返回以下錯誤訊息：:messages',
-    
+
     // 檔案驗證錯誤
     'file_empty_error' => '上傳的檔案為空或沒有有效資料。',
     'header_read_error' => '無法讀取上傳檔案的標題行。',

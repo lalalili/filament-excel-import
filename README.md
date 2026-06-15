@@ -190,6 +190,31 @@ return [
 ];
 ```
 
+### Upload validation and security
+
+The upload field restricts files to Excel / CSV MIME types by default. You may add
+Laravel validation rules, max file size, and custom MIME mappings when your
+environment needs stricter handling:
+
+```php
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->acceptedFileTypes([
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ])
+    ->fileRules(['mimes:csv,xlsx,xls'])
+    ->maxFileSize('10mb')
+    ->mimeTypeMap(['csv' => 'text/csv']);
+```
+
+Size strings accept `kb`, `mb`, and `gb` suffixes, including decimal values
+like `1.5mb`. The parsed size must be at least `1` KB.
+
+When using local or public disks, keep generated storage names instead of
+preserving user-provided filenames. Filament's file upload component validates
+MIME types, but original filenames can still be unsafe on PHP-executing disks.
+
 ### Performing Actions Before and After Import
 
 You can perform actions before and after import by using the beforeImport and afterImport closures.
@@ -215,6 +240,78 @@ You can perform actions before and after import by using the beforeImport and af
         ];
     }
 ```
+
+### Reading import results
+
+Default import classes expose an `ImportResult` with basic counts. Custom
+collection callbacks may return an `ImportResult` to provide their own numbers:
+
+```php
+use EightyNine\ExcelImport\Support\ImportResult;
+
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->processCollectionUsing(function (string $modelClass, Collection $collection): ImportResult {
+        // Process records...
+
+        return ImportResult::make(created: 10, skipped: 2);
+    })
+    ->afterImportResult(function (ImportResult $result): void {
+        // $result->created, $result->updated, $result->skipped, $result->failed
+    });
+```
+
+### Column mapping
+
+Use `columnMapping()` when uploaded headings differ from your model columns:
+
+```php
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->columnMapping([
+        'Email Address' => 'email',
+        'Full Name' => 'name',
+    ]);
+```
+
+### Previewing uploaded rows
+
+Use `previewRows()` to show the first rows of the uploaded spreadsheet in the
+import modal before the user submits the import:
+
+```php
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->previewRows(5);
+```
+
+The preview row limit must be at least `1`.
+
+### Queueing imports
+
+Use `queueImport()` to dispatch the import through Laravel queues. The built-in
+resource default imports are automatically swapped to queueable, chunked variants:
+
+```php
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->queueImport()
+    ->chunkSize(500);
+```
+
+The chunk size must be at least `1`.
+
+Custom import classes used with `queueImport()` must implement both
+`Illuminate\Contracts\Queue\ShouldQueue` and
+`Maatwebsite\Excel\Concerns\WithChunkReading`.
+Queued imports store uploaded files permanently before dispatching and read them
+from the action `disk()` or `excel-import.upload_disk` config. If you replace the
+default upload field, make sure it returns a stored file path instead of a
+temporary upload object.
+Relationship imports are not automatically made queueable because relation
+manager state is not safe to serialize; provide a custom queue-safe import class
+if you need that workflow.
+Closure-based settings such as `processCollectionUsing()`, closure column
+mappings, and validation mutators are not queue-safe; move that logic into a
+custom import class when queueing.
+Because queued imports finish later in a worker, `afterImport()` and
+`afterImportResult()` only run for synchronous imports.
 
 ### Data Validation
 
@@ -283,6 +380,13 @@ protected function getHeaderActions(): array
                 customiseActionUsing: fn(Action $action) => $action->color('secondary')
                     ->icon('heroicon-m-clipboard')
                     ->requiresConfirmation(),
+            ),
+        // OR
+        \EightyNine\ExcelImport\ExcelImportAction::make()
+            ->sampleColumns(
+                columns: ['name', 'email', 'phone'],
+                fileName: 'sample.xlsx',
+                sampleButtonLabel: 'Download Sample',
             ),
         // OR
         \EightyNine\ExcelImport\ExcelImportAction::make()

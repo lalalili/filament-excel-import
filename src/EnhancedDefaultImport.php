@@ -3,12 +3,14 @@
 namespace EightyNine\ExcelImport;
 
 use Closure;
+use EightyNine\ExcelImport\Contracts\HasImportResult;
 use EightyNine\ExcelImport\Exceptions\ImportStoppedException;
+use EightyNine\ExcelImport\Support\ImportResult;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class EnhancedDefaultImport implements ToCollection, WithHeadingRow
+class EnhancedDefaultImport implements HasImportResult, ToCollection, WithHeadingRow
 {
     protected array $additionalData = [];
 
@@ -18,10 +20,16 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
 
     protected ?Closure $afterValidationMutator = null;
 
+    protected array | Closure | null $columnMapping = null;
+
+    protected ImportResult $importResult;
+
     public function __construct(
         public string $model,
         public array $attributes = []
-    ) {}
+    ) {
+        $this->importResult = ImportResult::empty();
+    }
 
     public function setAdditionalData(array $additionalData): void
     {
@@ -41,6 +49,16 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
     public function setAfterValidationMutator(Closure $closure): void
     {
         $this->afterValidationMutator = $closure;
+    }
+
+    public function setColumnMapping(array | Closure $mapping): void
+    {
+        $this->columnMapping = $mapping;
+    }
+
+    public function getImportResult(): ImportResult
+    {
+        return $this->importResult;
     }
 
     /**
@@ -118,16 +136,26 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
         $this->beforeCollection($collection);
 
         if (is_callable($this->collectionMethod)) {
-            $collection = call_user_func(
+            $result = call_user_func(
                 $this->collectionMethod,
                 $this->model,
                 $collection,
                 $this->additionalData,
                 $this->afterValidationMutator
             );
+
+            if ($result instanceof ImportResult) {
+                $this->importResult = $result;
+            } elseif ($result instanceof Collection) {
+                $collection = $result;
+            }
         } else {
+            $created = 0;
+
             foreach ($collection as $row) {
                 $data = $row->toArray();
+                $data = $this->mapColumns($data);
+
                 if (filled($this->additionalData)) {
                     $data = array_merge($data, $this->additionalData);
                 }
@@ -142,10 +170,13 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
                 $this->beforeCreateRecord($data, $row);
 
                 $this->model::create($data);
+                $created++;
 
                 // Allow custom actions after creating each record
                 $this->afterCreateRecord($data, $row);
             }
+
+            $this->importResult = ImportResult::created($created);
         }
 
         // Allow custom actions after processing the entire collection
@@ -188,5 +219,28 @@ class EnhancedDefaultImport implements ToCollection, WithHeadingRow
     protected function afterCollection(Collection $collection): void
     {
         // Override in custom import classes
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mapColumns(array $data): array
+    {
+        if ($this->columnMapping === null) {
+            return $data;
+        }
+
+        if ($this->columnMapping instanceof Closure) {
+            return call_user_func($this->columnMapping, $data);
+        }
+
+        $mapped = [];
+
+        foreach ($data as $key => $value) {
+            $mapped[$this->columnMapping[$key] ?? $key] = $value;
+        }
+
+        return $mapped;
     }
 }
