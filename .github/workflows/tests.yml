@@ -21,7 +21,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          coverage: none
+          coverage: xdebug
 
       - name: Install dependencies
         run: composer update --prefer-stable --prefer-dist --no-interaction --no-progress --with="filament/filament:^5.0" --with="illuminate/contracts:^13.0" --with="laravel/framework:^13.0" --with="orchestra/testbench:^11.0"
