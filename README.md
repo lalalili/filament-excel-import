@@ -92,6 +92,14 @@ Version `4.5.2` fixes upload previews for localized spreadsheets.
 - Non-English preview headers are preserved as uploaded.
 - Blank preview headers are shown as Excel column letters, such as `C`.
 
+## v4.5.3 Highlights
+
+Version `4.5.3` makes the upload preview column count configurable.
+
+- Preview tables still render at most 5 columns by default.
+- `previewColumns()` overrides the rendered preview column count per action.
+- `config('excel-import.preview.columns')` controls the global default.
+
 ## 🛠️ Be Part of the Journey
 
 Hi, I'm Eighty Nine. I created excel import plugin to solve real problems I faced as a developer. Your sponsorship will allow me to dedicate more time to enhancing these tools and helping more people. [Become a sponsor](https://github.com/sponsors/eighty9nine) and join me in making a positive impact on the developer community.
@@ -406,14 +414,33 @@ import modal before the user submits the import:
     ->previewRows(5);
 ```
 
-The preview row limit must be at least `1`.
+Use `previewColumns()` when a specific import needs more or fewer visible
+columns than the global default:
 
-The preview row limit may not exceed `50`, and the rendered table shows at most
-the first `5` columns. For multi-sheet workbooks, preview reads the first visible
-worksheet and skips hidden worksheets. Header labels are preserved from the
-uploaded file, including non-English labels; blank headers are displayed with
-Excel column letters. Preview is only a format confirmation aid; keep using
-`fileRules()` and `validateUsing()` for actual validation.
+```php
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->previewRows(5)
+    ->previewColumns(8);
+```
+
+You may also publish the package config and change the global rendered column
+default:
+
+```php
+// config/excel-import.php
+'preview' => [
+    'columns' => 5,
+],
+```
+
+The preview row and column limits must be at least `1`.
+
+The preview row and explicit action column limits may not exceed `50`. For
+multi-sheet workbooks, preview reads the first visible worksheet and skips hidden
+worksheets. Header labels are preserved from the uploaded file, including
+non-English labels; blank headers are displayed with Excel column letters.
+Preview is only a format confirmation aid; keep using `fileRules()` and
+`validateUsing()` for actual validation.
 
 ### Queueing imports
 

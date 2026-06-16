@@ -1,5 +1,25 @@
 # Upgrade Guide
 
+## Upgrading to 4.5.3
+
+Upload preview tables still render at most `5` columns by default. You can now
+change the rendered column count globally in `config/excel-import.php`:
+
+```php
+'preview' => [
+    'columns' => 5,
+],
+```
+
+Use `previewColumns()` when a specific import action needs a different preview
+width:
+
+```php
+ExcelImportAction::make()
+    ->previewRows(5)
+    ->previewColumns(8);
+```
+
 ## Upgrading to 4.5.2
 
 Upload previews now preserve non-English header labels. Blank header cells are

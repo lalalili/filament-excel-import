@@ -120,6 +120,28 @@ it('limits preview rows to fifty rows', function () {
     $action->previewRows(51);
 })->throws(InvalidArgumentException::class, 'Preview rows may not exceed 50.');
 
+it('requires a positive preview column limit', function () {
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+    };
+
+    $action->previewColumns(0);
+})->throws(InvalidArgumentException::class, 'Preview columns must be at least 1.');
+
+it('limits preview columns to fifty columns', function () {
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+    };
+
+    $action->previewColumns(51);
+})->throws(InvalidArgumentException::class, 'Preview columns may not exceed 50.');
+
 it('stores uploaded files when queue imports are enabled', function () {
     $action = new class
     {
@@ -276,6 +298,69 @@ it('limits preview table to five columns and stringifies nested values', functio
         ->toContain('{&quot;nested&quot;:&quot;value&quot;}')
         ->not->toContain('column_6')
         ->not->toContain('value_6');
+});
+
+it('uses the configured preview column limit', function () {
+    config()->set('excel-import.preview.columns', 3);
+
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+
+        public function previewTableForTest(): HtmlString
+        {
+            return new HtmlString($this->renderPreviewTable(collect([
+                collect([
+                    'column_1' => 'value_1',
+                    'column_2' => 'value_2',
+                    'column_3' => 'value_3',
+                    'column_4' => 'value_4',
+                ]),
+            ])));
+        }
+    };
+
+    $html = $action->previewTableForTest()->toHtml();
+
+    expect($html)
+        ->toContain('column_3')
+        ->not->toContain('column_4')
+        ->not->toContain('value_4');
+});
+
+it('lets action preview column settings override config', function () {
+    config()->set('excel-import.preview.columns', 3);
+
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+
+        public function previewTableForTest(): HtmlString
+        {
+            $this->previewColumns(4);
+
+            return new HtmlString($this->renderPreviewTable(collect([
+                collect([
+                    'column_1' => 'value_1',
+                    'column_2' => 'value_2',
+                    'column_3' => 'value_3',
+                    'column_4' => 'value_4',
+                    'column_5' => 'value_5',
+                ]),
+            ])));
+        }
+    };
+
+    $html = $action->previewTableForTest()->toHtml();
+
+    expect($html)
+        ->toContain('column_4')
+        ->not->toContain('column_5')
+        ->not->toContain('value_5');
 });
 
 it('previews the first visible worksheet and ignores hidden worksheets', function () {

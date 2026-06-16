@@ -2,6 +2,11 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
+## 4.5.3 - 2026-06-16
+
+- Add `previewColumns()` to override the rendered preview column count per action.
+- Add `excel-import.preview.columns` config for the global preview column default.
+
 ## 4.5.2 - 2026-06-16
 
 - Preserve non-English preview headers instead of applying heading formatting.

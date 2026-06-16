@@ -100,7 +100,7 @@ it('documents the 4.5.1 preview worksheet and column limit release notes', funct
     expect($readme)
         ->toContain('## v4.5.1 Highlights')
         ->toContain('first visible worksheet')
-        ->toContain('first `5` columns')
+        ->toContain('at most 5 columns')
         ->and($changelog)
         ->toContain('## 4.5.1 - 2026-06-16')
         ->toContain('skipping hidden worksheets')
@@ -124,4 +124,21 @@ it('documents the 4.5.2 localized preview header release notes', function () {
         ->and($upgrade)
         ->toContain('## Upgrading to 4.5.2')
         ->toContain('Blank header cells');
+});
+
+it('documents the 4.5.3 configurable preview column release notes', function () {
+    $readme = file_get_contents(__DIR__ . '/../README.md');
+    $changelog = file_get_contents(__DIR__ . '/../CHANGELOG.md');
+    $upgrade = file_get_contents(__DIR__ . '/../UPGRADE.md');
+
+    expect($readme)
+        ->toContain('## v4.5.3 Highlights')
+        ->toContain('previewColumns()')
+        ->toContain('excel-import.preview.columns')
+        ->and($changelog)
+        ->toContain('## 4.5.3 - 2026-06-16')
+        ->toContain('previewColumns()')
+        ->and($upgrade)
+        ->toContain('## Upgrading to 4.5.3')
+        ->toContain('previewColumns(8)');
 });

@@ -51,6 +51,8 @@ trait HasUploadForm
 
     protected ?int $previewRows = null;
 
+    protected ?int $previewColumns = null;
+
     protected array | Closure | null $columnMapping = null;
 
     protected bool $validate = false;
@@ -130,6 +132,21 @@ trait HasUploadForm
         }
 
         $this->previewRows = $limit;
+
+        return $this;
+    }
+
+    public function previewColumns(int $limit = 5): static
+    {
+        if ($limit < 1) {
+            throw new InvalidArgumentException('Preview columns must be at least 1.');
+        }
+
+        if ($limit > 50) {
+            throw new InvalidArgumentException('Preview columns may not exceed 50.');
+        }
+
+        $this->previewColumns = $limit;
 
         return $this;
     }
@@ -455,7 +472,7 @@ trait HasUploadForm
         $headers = $rows
             ->flatMap(fn (Collection | array $row): array => array_keys($row instanceof Collection ? $row->toArray() : $row))
             ->unique()
-            ->take(5)
+            ->take($this->configuredPreviewColumns())
             ->values();
 
         $headerCells = $headers
@@ -480,6 +497,17 @@ trait HasUploadForm
             . '<tbody class="bg-white dark:bg-gray-900">' . $bodyRows . '</tbody>'
             . '</table>'
             . '</div>';
+    }
+
+    protected function configuredPreviewColumns(): int
+    {
+        $columns = $this->previewColumns ?? (int) config('excel-import.preview.columns', 5);
+
+        if ($columns < 1) {
+            return 5;
+        }
+
+        return min($columns, 50);
     }
 
     protected function stringifyPreviewValue(mixed $value): string

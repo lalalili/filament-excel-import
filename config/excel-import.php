@@ -18,4 +18,14 @@ return [
      * with existing button styles in your application
      */
     'load_stylesheet' => false,
+
+    /**
+     * Upload preview defaults
+     *
+     * These defaults keep modal previews compact. Individual actions may
+     * override the rendered column count with previewColumns().
+     */
+    'preview' => [
+        'columns' => 5,
+    ],
 ];
