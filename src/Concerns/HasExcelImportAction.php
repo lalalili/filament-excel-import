@@ -11,6 +11,7 @@ use EightyNine\ExcelImport\Exceptions\ImportStoppedException;
 use EightyNine\ExcelImport\QueuedDefaultImport;
 use EightyNine\ExcelImport\QueuedEnhancedDefaultImport;
 use EightyNine\ExcelImport\Support\FailedRowsCsvExporter;
+use EightyNine\ExcelImport\Support\FailedRowsExport;
 use EightyNine\ExcelImport\Support\ImportResult;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
@@ -39,7 +41,11 @@ trait HasExcelImportAction
 
     protected string $failedRowsDirectory = 'excel-import/failed-rows';
 
-    protected string | Closure $failedRowsFileName = 'failed-rows.csv';
+    protected string | Closure $failedRowsFileName = 'failed-rows.xlsx';
+
+    protected string $failedRowsFormat = 'xlsx';
+
+    protected bool $failedRowsFormatWasConfigured = false;
 
     public function use(?string $class = null, ...$attributes): static
     {
@@ -65,14 +71,26 @@ trait HasExcelImportAction
 
     public function failedRowsDirectory(string $directory): static
     {
-        $this->failedRowsDirectory = trim($directory, '/');
+        $this->failedRowsDirectory = $this->sanitizeFailedRowsDirectory($directory);
 
         return $this;
     }
 
     public function failedRowsFileName(string | Closure $name): static
     {
+        if (is_string($name)) {
+            $this->sanitizeFailedRowsFileName($name);
+        }
+
         $this->failedRowsFileName = $name;
+
+        return $this;
+    }
+
+    public function failedRowsFormat(string $format): static
+    {
+        $this->failedRowsFormat = $this->sanitizeFailedRowsFormat($format);
+        $this->failedRowsFormatWasConfigured = true;
 
         return $this;
     }
@@ -327,11 +345,14 @@ trait HasExcelImportAction
         }
 
         $disk = $this->resolvedFailedRowsDisk();
-        $downloadName = $this->resolvedFailedRowsFileName($result, $data);
+        ['downloadName' => $downloadName, 'format' => $format] = $this->resolvedFailedRowsExportOptions($result, $data);
         $path = $this->failedRowsPath($downloadName);
-        $csv = (new FailedRowsCsvExporter)->export($result);
 
-        Storage::disk($disk)->put($path, $csv);
+        if ($format === 'csv') {
+            Storage::disk($disk)->put($path, (new FailedRowsCsvExporter)->export($result));
+        } else {
+            Excel::store(new FailedRowsExport($result->errors), $path, $disk, ExcelWriter::XLSX);
+        }
 
         return $result->withFailedRows($path, $disk, $downloadName);
     }
@@ -341,27 +362,111 @@ trait HasExcelImportAction
         return $this->failedRowsDisk ?? $this->uploadDisk();
     }
 
-    protected function resolvedFailedRowsFileName(ImportResult $result, array $data): string
+    /**
+     * @return array{downloadName: string, format: string}
+     */
+    protected function resolvedFailedRowsExportOptions(ImportResult $result, array $data): array
     {
         $name = $this->failedRowsFileName instanceof Closure
             ? call_user_func($this->failedRowsFileName, $result, $data, $this)
             : $this->failedRowsFileName;
 
-        $name = basename(trim((string) $name));
+        $name = $this->sanitizeFailedRowsFileName((string) $name);
+        $format = $this->resolvedFailedRowsFormat($name);
 
-        if ($name === '') {
-            throw new InvalidArgumentException('Failed rows file name cannot be empty.');
-        }
-
-        return Str::endsWith($name, '.csv') ? $name : $name . '.csv';
+        return [
+            'downloadName' => $this->withFailedRowsExtension($name, $format),
+            'format' => $format,
+        ];
     }
 
     protected function failedRowsPath(string $downloadName): string
     {
-        $fileName = basename($downloadName);
-        $directory = trim($this->failedRowsDirectory, '/');
+        $fileName = $this->sanitizeFailedRowsFileName($downloadName);
+        $directory = $this->sanitizeFailedRowsDirectory($this->failedRowsDirectory);
 
-        return $directory === '' ? $fileName : $directory . '/' . $fileName;
+        return $directory . '/' . $fileName;
+    }
+
+    protected function resolvedFailedRowsFormat(string $fileName): string
+    {
+        if ($this->failedRowsFormatWasConfigured) {
+            return $this->failedRowsFormat;
+        }
+
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        if (in_array($extension, ['csv', 'xlsx'], true)) {
+            return $extension;
+        }
+
+        return $this->failedRowsFormat;
+    }
+
+    protected function withFailedRowsExtension(string $fileName, string $format): string
+    {
+        $baseName = preg_replace('/\.(csv|xlsx)$/i', '', $fileName) ?? $fileName;
+
+        return Str::endsWith(strtolower($fileName), '.' . $format)
+            ? $fileName
+            : $baseName . '.' . $format;
+    }
+
+    protected function sanitizeFailedRowsFormat(string $format): string
+    {
+        $format = strtolower(trim($format));
+
+        if (! in_array($format, ['csv', 'xlsx'], true)) {
+            throw new InvalidArgumentException('Failed rows format must be csv or xlsx.');
+        }
+
+        return $format;
+    }
+
+    protected function sanitizeFailedRowsDirectory(string $directory): string
+    {
+        $directory = trim($directory);
+
+        if ($directory === '') {
+            throw new InvalidArgumentException('Failed rows directory cannot be empty.');
+        }
+
+        if (
+            str_starts_with($directory, '/')
+            || str_contains($directory, '\\')
+            || preg_match('/^[A-Za-z]:[\/\\\\]/', $directory) === 1
+        ) {
+            throw new InvalidArgumentException('Failed rows directory must be a relative path.');
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F]/', $directory) === 1) {
+            throw new InvalidArgumentException('Failed rows directory cannot contain control characters.');
+        }
+
+        $directory = trim($directory, '/');
+
+        foreach (explode('/', $directory) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new InvalidArgumentException('Failed rows directory must be a relative path without dot segments.');
+            }
+        }
+
+        return $directory;
+    }
+
+    protected function sanitizeFailedRowsFileName(string $fileName): string
+    {
+        $fileName = trim($fileName);
+
+        if ($fileName === '') {
+            throw new InvalidArgumentException('Failed rows file name cannot be empty.');
+        }
+
+        if (preg_match('/[\/\\\\\x00-\x1F\x7F]/', $fileName) === 1 || str_contains($fileName, '..')) {
+            throw new InvalidArgumentException('Failed rows file name must not contain paths or control characters.');
+        }
+
+        return $fileName;
     }
 
     protected function sendStoppedImportNotification(ImportStoppedException $exception): void

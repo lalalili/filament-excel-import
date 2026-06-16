@@ -121,6 +121,10 @@ trait HasUploadForm
             throw new InvalidArgumentException('Preview rows must be at least 1.');
         }
 
+        if ($limit > 50) {
+            throw new InvalidArgumentException('Preview rows may not exceed 50.');
+        }
+
         $this->previewRows = $limit;
 
         return $this;
@@ -332,6 +336,7 @@ trait HasUploadForm
         $headers = $rows
             ->flatMap(fn (Collection | array $row): array => array_keys($row instanceof Collection ? $row->toArray() : $row))
             ->unique()
+            ->take(25)
             ->values();
 
         $headerCells = $headers
@@ -343,7 +348,7 @@ trait HasUploadForm
                 $row = $row instanceof Collection ? $row->toArray() : $row;
 
                 $cells = $headers
-                    ->map(fn (string | int $header): string => '<td class="px-2 py-1 text-gray-600 dark:text-gray-300">' . e((string) ($row[$header] ?? '')) . '</td>')
+                    ->map(fn (string | int $header): string => '<td class="px-2 py-1 text-gray-600 dark:text-gray-300">' . e($this->stringifyPreviewValue($row[$header] ?? '')) . '</td>')
                     ->implode('');
 
                 return '<tr class="border-t border-gray-200 dark:border-gray-700">' . $cells . '</tr>';
@@ -356,6 +361,23 @@ trait HasUploadForm
             . '<tbody class="bg-white dark:bg-gray-900">' . $bodyRows . '</tbody>'
             . '</table>'
             . '</div>';
+    }
+
+    protected function stringifyPreviewValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
     }
 
     private function maxFileSizeInKilobytes(): int

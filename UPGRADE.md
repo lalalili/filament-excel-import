@@ -1,5 +1,40 @@
 # Upgrade Guide
 
+## Upgrading to 4.5.0
+
+Version `4.5.0` changes failed row summaries from CSV to XLSX by default.
+Existing imports are unchanged unless `downloadFailedRows()` is enabled.
+
+```php
+use EightyNine\ExcelImport\ExcelImportAction;
+
+ExcelImportAction::make()
+    ->downloadFailedRows()
+    ->failedRowsDisk('local')
+    ->failedRowsDirectory('imports/failed')
+    ->failedRowsFileName('people-errors.xlsx');
+```
+
+If your application expects the previous CSV file, opt in explicitly:
+
+```php
+ExcelImportAction::make()
+    ->downloadFailedRows()
+    ->failedRowsFormat('csv')
+    ->failedRowsFileName('people-errors.csv');
+```
+
+When `failedRowsFormat()` is not called, `.csv` and `.xlsx` suffixes passed to
+`failedRowsFileName()` are used to infer the export format. Explicit
+`failedRowsFormat()` calls take precedence and normalize the file extension.
+
+Failed row file names may not contain paths or control characters. Failed row
+directories must be relative paths without `.` or `..` segments.
+
+Upload previews now reject limits above `50` rows and render at most `25`
+columns. Preview output remains escaped and should be treated as a format
+confirmation aid, not a replacement for `fileRules()` or `validateUsing()`.
+
 ## Upgrading to 4.4.0
 
 Version `4.4.0` adds protected extension points for custom action subclasses.

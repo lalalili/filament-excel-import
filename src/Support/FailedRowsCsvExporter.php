@@ -12,7 +12,8 @@ class FailedRowsCsvExporter
             return '';
         }
 
-        $headers = $this->headers($result->errors);
+        $export = new FailedRowsExport($result->errors);
+        $headers = $export->headings();
         $handle = fopen('php://temp', 'r+');
 
         if ($handle === false) {
@@ -21,11 +22,8 @@ class FailedRowsCsvExporter
 
         fputcsv($handle, $headers);
 
-        foreach ($result->errors as $error) {
-            fputcsv($handle, array_map(
-                fn (string $header): string => $this->stringify($error[$header] ?? ''),
-                $headers,
-            ));
+        foreach ($export->array() as $row) {
+            fputcsv($handle, $row);
         }
 
         rewind($handle);
@@ -35,41 +33,5 @@ class FailedRowsCsvExporter
         fclose($handle);
 
         return $contents;
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $errors
-     * @return list<string>
-     */
-    private function headers(array $errors): array
-    {
-        $headers = [];
-
-        foreach ($errors as $error) {
-            foreach (array_keys($error) as $header) {
-                if (! in_array($header, $headers, true)) {
-                    $headers[] = $header;
-                }
-            }
-        }
-
-        return $headers;
-    }
-
-    private function stringify(mixed $value): string
-    {
-        if ($value === null) {
-            return '';
-        }
-
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-
-        if (is_scalar($value)) {
-            return (string) $value;
-        }
-
-        return json_encode($value, JSON_THROW_ON_ERROR);
     }
 }

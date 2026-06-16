@@ -104,6 +104,17 @@ it('requires a positive preview row limit', function () {
     $action->previewRows(0);
 })->throws(InvalidArgumentException::class, 'Preview rows must be at least 1.');
 
+it('limits preview rows to fifty rows', function () {
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+    };
+
+    $action->previewRows(51);
+})->throws(InvalidArgumentException::class, 'Preview rows may not exceed 50.');
+
 it('stores uploaded files when queue imports are enabled', function () {
     $action = new class
     {
@@ -228,4 +239,36 @@ it('escapes preview table values', function () {
 
     expect($html)->toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;')
         ->and($html)->not->toContain('<script>');
+});
+
+it('limits preview table columns and stringifies nested values', function () {
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+
+        public function previewTableForTest(): HtmlString
+        {
+            $row = [];
+
+            foreach (range(1, 26) as $index) {
+                $row["column_{$index}"] = "value_{$index}";
+            }
+
+            $row['column_2'] = ['nested' => 'value'];
+
+            return new HtmlString($this->renderPreviewTable(collect([
+                collect($row),
+            ])));
+        }
+    };
+
+    $html = $action->previewTableForTest()->toHtml();
+
+    expect($html)
+        ->toContain('column_25')
+        ->toContain('{&quot;nested&quot;:&quot;value&quot;}')
+        ->not->toContain('column_26')
+        ->not->toContain('value_26');
 });

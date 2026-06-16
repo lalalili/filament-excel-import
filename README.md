@@ -63,8 +63,19 @@ the package import pipeline.
   errors, write session state, or delegate unknown exceptions back to the
   package.
 - Shared protected hooks keep custom actions aligned with upload normalization,
-  queue guards, failed rows CSV, result callbacks, success notifications, and
+  queue guards, failed rows export, result callbacks, success notifications, and
   stopped import handling.
+
+## v4.5.0 Highlights
+
+Version `4.5.0` makes failed row summaries easier to download in spreadsheet
+tools and hardens upload preview output.
+
+- `downloadFailedRows()` now writes XLSX files by default.
+- `failedRowsFormat('csv')` keeps the previous CSV summary format available.
+- Failed row file names and directories reject unsafe paths.
+- `previewRows()` is limited to 50 rows and renders at most 25 columns.
+- Preview values remain escaped and nested values are rendered as JSON.
 
 ## 🛠️ Be Part of the Journey
 
@@ -321,7 +332,7 @@ use EightyNine\ExcelImport\Support\ImportResult;
 ### Downloading failed rows
 
 Use `downloadFailedRows()` when a custom import returns row-level errors in its
-`ImportResult`. The package writes a CSV summary only when this option is
+`ImportResult`. The package writes an XLSX summary only when this option is
 enabled and `ImportResult::$errors` is not empty:
 
 ```php
@@ -331,18 +342,30 @@ use EightyNine\ExcelImport\Support\ImportResult;
     ->downloadFailedRows()
     ->failedRowsDisk('local')
     ->failedRowsDirectory('imports/failed')
-    ->failedRowsFileName(fn (ImportResult $result): string => "failed-rows-{$result->failed}.csv")
+    ->failedRowsFileName(fn (ImportResult $result): string => "failed-rows-{$result->failed}.xlsx")
     ->afterImportResult(function (ImportResult $result): void {
         // $result->failedRowsDisk
         // $result->failedRowsPath
         // $result->failedRowsDownloadName
-    });
+});
 ```
 
 The default directory is `excel-import/failed-rows`, and the default download
-name is `failed-rows.csv`. File names are normalized to `.csv`.
+name is `failed-rows.xlsx`. File names are normalized to the selected format.
 
-Failed rows CSV export is synchronous-only. Queued imports finish later in a
+Use `failedRowsFormat('csv')` when you need the previous CSV output:
+
+```php
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->downloadFailedRows()
+    ->failedRowsFormat('csv');
+```
+
+If no format is configured explicitly, a `.csv` or `.xlsx` suffix passed to
+`failedRowsFileName()` determines the output format. Explicit
+`failedRowsFormat()` calls take precedence over the file name suffix.
+
+Failed rows export is synchronous-only. Queued imports finish later in a
 worker, so they do not run Livewire result hooks or write failed row summaries
 from the action instance.
 
@@ -369,6 +392,10 @@ import modal before the user submits the import:
 ```
 
 The preview row limit must be at least `1`.
+
+The preview row limit may not exceed `50`, and the rendered table shows at most
+the first `25` columns. Preview is only a format confirmation aid; keep using
+`fileRules()` and `validateUsing()` for actual validation.
 
 ### Queueing imports
 

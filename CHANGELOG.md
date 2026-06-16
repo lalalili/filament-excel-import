@@ -2,6 +2,14 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
+## 4.5.0 - 2026-06-16
+
+- Change opt-in failed rows export to write XLSX files by default.
+- Add `failedRowsFormat()` so failed row summaries can still be written as CSV.
+- Harden failed rows file names and directories against unsafe paths.
+- Limit upload previews to 50 rows and 25 rendered columns.
+- Improve preview rendering for nested values while keeping HTML escaped.
+
 ## 4.4.0 - 2026-06-16
 
 - Add protected import pipeline extension points for custom action subclasses.

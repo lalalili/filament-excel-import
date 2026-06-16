@@ -73,3 +73,21 @@ it('documents the 4.4.0 custom action extension release notes and upgrade path',
         ->toContain('callAfterImport(array $data, mixed $livewire): void')
         ->toContain('parent::handleImportException()');
 });
+
+it('documents the 4.5.0 failed rows xlsx and preview hardening release notes', function () {
+    $readme = file_get_contents(__DIR__ . '/../README.md');
+    $changelog = file_get_contents(__DIR__ . '/../CHANGELOG.md');
+    $upgrade = file_get_contents(__DIR__ . '/../UPGRADE.md');
+
+    expect($readme)
+        ->toContain('## v4.5.0 Highlights')
+        ->toContain('failedRowsFormat(\'csv\')')
+        ->toContain('`previewRows()` is limited to 50 rows')
+        ->and($changelog)
+        ->toContain('## 4.5.0 - 2026-06-16')
+        ->toContain('write XLSX files by default')
+        ->and($upgrade)
+        ->toContain('## Upgrading to 4.5.0')
+        ->toContain('failedRowsFormat()')
+        ->toContain('render at most `25`');
+});

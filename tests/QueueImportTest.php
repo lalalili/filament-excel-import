@@ -9,6 +9,7 @@ use EightyNine\ExcelImport\Events\ImportStarted;
 use EightyNine\ExcelImport\ExcelImportAction;
 use EightyNine\ExcelImport\QueuedDefaultImport;
 use EightyNine\ExcelImport\QueuedEnhancedDefaultImport;
+use EightyNine\ExcelImport\Support\FailedRowsExport;
 use EightyNine\ExcelImport\Support\ImportResult;
 use EightyNine\ExcelImport\Tables\ExcelImportRelationshipAction;
 use Illuminate\Support\Facades\Event;
@@ -298,7 +299,7 @@ it('does not write failed rows by default', function () {
         'upload' => 'people.xlsx',
     ], new QueueImportLivewire);
 
-    Storage::disk('imports')->assertMissing('excel-import/failed-rows/failed-rows.csv');
+    Storage::disk('imports')->assertMissing('excel-import/failed-rows/failed-rows.xlsx');
 
     expect($importResult)->toBeInstanceOf(ImportResult::class)
         ->and($importResult?->failedRowsPath)->toBeNull()
@@ -306,13 +307,55 @@ it('does not write failed rows by default', function () {
         ->and($importResult?->failedRowsDownloadName)->toBeNull();
 });
 
-it('writes failed row errors to csv when opted in', function () {
+it('writes failed row errors to xlsx by default when opted in', function () {
+    Excel::fake();
+
+    $importResult = null;
+
+    $action = TestableSuccessfulExcelImportAction::make()
+        ->downloadFailedRows()
+        ->failedRowsDisk('imports')
+        ->failedRowsDirectory('imports/errors')
+        ->failedRowsFileName(fn (ImportResult $result): string => "people-errors-{$result->failed}")
+        ->processCollectionUsing(fn (): ImportResult => ImportResult::make(
+            failed: 2,
+            errors: [
+                ['row' => 2, 'attribute' => 'email', 'message' => 'Invalid email', 'values' => ['email' => 'bad']],
+                ['row' => 3, 'attribute' => 'name', 'message' => 'Required'],
+            ],
+        ))
+        ->afterImportResult(function (ImportResult $result) use (&$importResult): void {
+            $importResult = $result;
+        });
+
+    $action->runActionForTest([
+        'upload' => 'people.xlsx',
+    ], new QueueImportLivewire);
+
+    Excel::assertStored(
+        'imports/errors/people-errors-2.xlsx',
+        'imports',
+        fn (FailedRowsExport $export): bool => $export->headings() === ['row', 'attribute', 'message', 'values']
+            && $export->array() === [
+                ['2', 'email', 'Invalid email', '{"email":"bad"}'],
+                ['3', 'name', 'Required', ''],
+            ]
+    );
+
+    expect($importResult)->toBeInstanceOf(ImportResult::class)
+        ->and($importResult?->failedRowsPath)->toBe('imports/errors/people-errors-2.xlsx')
+        ->and($importResult?->failedRowsDisk)->toBe('imports')
+        ->and($importResult?->failedRowsDownloadName)->toBe('people-errors-2.xlsx');
+});
+
+it('writes failed row errors to csv when requested', function () {
     Storage::fake('imports');
 
     $importResult = null;
 
     $action = TestableSuccessfulExcelImportAction::make()
         ->downloadFailedRows()
+        ->failedRowsFormat('csv')
         ->failedRowsDisk('imports')
         ->failedRowsDirectory('imports/errors')
         ->failedRowsFileName(fn (ImportResult $result): string => "people-errors-{$result->failed}")
@@ -341,6 +384,91 @@ it('writes failed row errors to csv when opted in', function () {
         ->toBe("row,attribute,message,values\n2,email,\"Invalid email\",\"{\"\"email\"\":\"\"bad\"\"}\"\n3,name,Required,\n");
 });
 
+it('infers csv failed rows format from the configured file name', function () {
+    Storage::fake('imports');
+
+    $importResult = null;
+
+    $action = TestableSuccessfulExcelImportAction::make()
+        ->downloadFailedRows()
+        ->failedRowsDisk('imports')
+        ->failedRowsFileName('people-errors.csv')
+        ->processCollectionUsing(fn (): ImportResult => ImportResult::make(
+            failed: 1,
+            errors: [
+                ['row' => 2, 'message' => 'Invalid email'],
+            ],
+        ))
+        ->afterImportResult(function (ImportResult $result) use (&$importResult): void {
+            $importResult = $result;
+        });
+
+    $action->runActionForTest([
+        'upload' => 'people.xlsx',
+    ], new QueueImportLivewire);
+
+    Storage::disk('imports')->assertExists('excel-import/failed-rows/people-errors.csv');
+
+    expect($importResult?->failedRowsDownloadName)->toBe('people-errors.csv')
+        ->and(Storage::disk('imports')->get('excel-import/failed-rows/people-errors.csv'))
+        ->toBe("row,message\n2,\"Invalid email\"\n");
+});
+
+it('lets an explicit failed rows format replace a conflicting file extension', function () {
+    Excel::fake();
+
+    $importResult = null;
+
+    $action = TestableSuccessfulExcelImportAction::make()
+        ->downloadFailedRows()
+        ->failedRowsFormat('xlsx')
+        ->failedRowsDisk('imports')
+        ->failedRowsFileName('people-errors.csv')
+        ->processCollectionUsing(fn (): ImportResult => ImportResult::make(
+            failed: 1,
+            errors: [
+                ['row' => 2, 'message' => 'Invalid email'],
+            ],
+        ))
+        ->afterImportResult(function (ImportResult $result) use (&$importResult): void {
+            $importResult = $result;
+        });
+
+    $action->runActionForTest([
+        'upload' => 'people.xlsx',
+    ], new QueueImportLivewire);
+
+    Excel::assertStored('excel-import/failed-rows/people-errors.xlsx', 'imports');
+
+    expect($importResult?->failedRowsDownloadName)->toBe('people-errors.xlsx');
+});
+
+it('rejects unsupported failed rows formats', function () {
+    TestableSuccessfulExcelImportAction::make()->failedRowsFormat('pdf');
+})->throws(InvalidArgumentException::class, 'Failed rows format must be csv or xlsx.');
+
+it('rejects unsafe failed rows directories', function (string $directory) {
+    TestableSuccessfulExcelImportAction::make()->failedRowsDirectory($directory);
+})->with([
+    '',
+    '/absolute',
+    '../exports',
+    'exports/../errors',
+    'exports\\errors',
+    "exports\nerrors",
+])->throws(InvalidArgumentException::class);
+
+it('rejects unsafe failed rows file names', function (string $fileName) {
+    TestableSuccessfulExcelImportAction::make()->failedRowsFileName($fileName);
+})->with([
+    '',
+    '/absolute.xlsx',
+    '../errors.xlsx',
+    'nested/errors.xlsx',
+    'nested\\errors.xlsx',
+    "errors\n.xlsx",
+])->throws(InvalidArgumentException::class);
+
 it('does not write failed rows for queued imports', function () {
     Storage::fake('imports');
     Excel::fake();
@@ -357,7 +485,7 @@ it('does not write failed rows for queued imports', function () {
         'upload' => 'people.xlsx',
     ], new QueueImportLivewire);
 
-    Storage::disk('imports')->assertMissing('excel-import/failed-rows/failed-rows.csv');
+    Storage::disk('imports')->assertMissing('excel-import/failed-rows/failed-rows.xlsx');
 
     expect($result)->toBeTrue();
 });
