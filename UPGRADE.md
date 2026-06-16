@@ -1,5 +1,11 @@
 # Upgrade Guide
 
+## Upgrading to 4.5.1
+
+Upload preview tables now render at most `5` columns. Multi-sheet workbooks are
+previewed from the first visible worksheet, so hidden setup or metadata sheets
+are skipped.
+
 ## Upgrading to 4.5.0
 
 Version `4.5.0` changes failed row summaries from CSV to XLSX by default.

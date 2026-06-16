@@ -2,6 +2,11 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
+## 4.5.1 - 2026-06-16
+
+- Limit upload preview tables to 5 rendered columns.
+- Read upload previews from the first visible worksheet, skipping hidden worksheets.
+
 ## 4.5.0 - 2026-06-16
 
 - Change opt-in failed rows export to write XLSX files by default.

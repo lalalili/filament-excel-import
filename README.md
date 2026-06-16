@@ -77,6 +77,14 @@ tools and hardens upload preview output.
 - `previewRows()` is limited to 50 rows and renders at most 25 columns.
 - Preview values remain escaped and nested values are rendered as JSON.
 
+## v4.5.1 Highlights
+
+Version `4.5.1` aligns upload previews with spreadsheet import expectations.
+
+- Preview tables render at most 5 columns to keep modal content compact.
+- Workbooks are previewed from the first visible worksheet, skipping hidden
+  worksheets.
+
 ## 🛠️ Be Part of the Journey
 
 Hi, I'm Eighty Nine. I created excel import plugin to solve real problems I faced as a developer. Your sponsorship will allow me to dedicate more time to enhancing these tools and helping more people. [Become a sponsor](https://github.com/sponsors/eighty9nine) and join me in making a positive impact on the developer community.
@@ -394,8 +402,9 @@ import modal before the user submits the import:
 The preview row limit must be at least `1`.
 
 The preview row limit may not exceed `50`, and the rendered table shows at most
-the first `25` columns. Preview is only a format confirmation aid; keep using
-`fileRules()` and `validateUsing()` for actual validation.
+the first `5` columns. For multi-sheet workbooks, preview reads the first visible
+worksheet and skips hidden worksheets. Preview is only a format confirmation
+aid; keep using `fileRules()` and `validateUsing()` for actual validation.
 
 ### Queueing imports
 

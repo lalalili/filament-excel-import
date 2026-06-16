@@ -10,9 +10,12 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
 
 trait HasUploadForm
@@ -309,12 +312,58 @@ trait HasUploadForm
         }
 
         $disk = $this->isTemporaryUpload($upload) ? null : $this->importDisk();
+        $visibleSheetIndex = $this->firstVisibleSheetIndex($upload, $disk);
+        $previewImport = new PreviewRowsImport($this->previewRows ?? 10, $visibleSheetIndex);
 
         $sheets = $disk === null
-            ? Excel::toCollection(new PreviewRowsImport($this->previewRows ?? 10), $upload)
-            : Excel::toCollection(new PreviewRowsImport($this->previewRows ?? 10), $upload, $disk);
+            ? Excel::toCollection($previewImport, $upload)
+            : Excel::toCollection($previewImport, $upload, $disk);
 
         return $sheets->first() ?? collect();
+    }
+
+    protected function firstVisibleSheetIndex(mixed $upload, ?string $disk): ?int
+    {
+        $path = $this->previewPath($upload, $disk);
+
+        if ($path === null || ! is_file($path)) {
+            return null;
+        }
+
+        $spreadsheet = IOFactory::load($path);
+
+        try {
+            foreach ($spreadsheet->getAllSheets() as $index => $sheet) {
+                if ($sheet->getSheetState() === 'visible') {
+                    return $index;
+                }
+            }
+
+            return 0;
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+        }
+    }
+
+    protected function previewPath(mixed $upload, ?string $disk): ?string
+    {
+        if ($upload instanceof UploadedFile) {
+            return $upload->getRealPath() ?: null;
+        }
+
+        if (is_string($upload) && $disk !== null) {
+            try {
+                return Storage::disk($disk)->path($upload);
+            } catch (Throwable) {
+                return null;
+            }
+        }
+
+        if (is_string($upload) && is_file($upload)) {
+            return $upload;
+        }
+
+        return null;
     }
 
     protected function normalizeUpload(mixed $upload): mixed
@@ -336,7 +385,7 @@ trait HasUploadForm
         $headers = $rows
             ->flatMap(fn (Collection | array $row): array => array_keys($row instanceof Collection ? $row->toArray() : $row))
             ->unique()
-            ->take(25)
+            ->take(5)
             ->values();
 
         $headerCells = $headers

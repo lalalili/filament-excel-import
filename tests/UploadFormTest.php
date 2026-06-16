@@ -6,7 +6,11 @@ use EightyNine\ExcelImport\Concerns\HasUploadForm;
 use Filament\Forms\Components\FileUpload;
 use Filament\Infolists\Components\TextEntry;
 use Illuminate\Support\HtmlString;
+use Maatwebsite\Excel\ExcelServiceProvider;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 it('applies custom upload rules max size and mime type mappings', function () {
     $action = new class
@@ -241,7 +245,7 @@ it('escapes preview table values', function () {
         ->and($html)->not->toContain('<script>');
 });
 
-it('limits preview table columns and stringifies nested values', function () {
+it('limits preview table to five columns and stringifies nested values', function () {
     $action = new class
     {
         use CanCustomiseActionSetup;
@@ -267,8 +271,59 @@ it('limits preview table columns and stringifies nested values', function () {
     $html = $action->previewTableForTest()->toHtml();
 
     expect($html)
-        ->toContain('column_25')
+        ->toContain('column_5')
         ->toContain('{&quot;nested&quot;:&quot;value&quot;}')
-        ->not->toContain('column_26')
-        ->not->toContain('value_26');
+        ->not->toContain('column_6')
+        ->not->toContain('value_6');
+});
+
+it('previews the first visible worksheet and ignores hidden worksheets', function () {
+    app()->register(ExcelServiceProvider::class);
+
+    $path = tempnam(sys_get_temp_dir(), 'preview-visible-sheet-') . '.xlsx';
+
+    $spreadsheet = new Spreadsheet;
+    $hiddenSheet = $spreadsheet->getActiveSheet();
+    $hiddenSheet->setTitle('Hidden');
+    $hiddenSheet->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
+    $hiddenSheet->fromArray([
+        ['name', 'email'],
+        ['Hidden Person', 'hidden@example.com'],
+    ]);
+
+    $visibleSheet = new Worksheet($spreadsheet, 'Visible');
+    $spreadsheet->addSheet($visibleSheet);
+    $spreadsheet->setActiveSheetIndex(1);
+    $visibleSheet->fromArray([
+        ['name', 'email'],
+        ['Visible Person', 'visible@example.com'],
+    ]);
+
+    (new Xlsx($spreadsheet))->save($path);
+    $spreadsheet->disconnectWorksheets();
+
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+
+        public function previewRowsForTest(string $path): array
+        {
+            $this->previewRows(5);
+
+            return $this->readPreviewRows($path)->toArray();
+        }
+    };
+
+    try {
+        $rows = $action->previewRowsForTest($path);
+    } finally {
+        @unlink($path);
+    }
+
+    expect($rows)
+        ->toHaveCount(1)
+        ->and($rows[0]['name'])->toBe('Visible Person')
+        ->and($rows[0]['email'])->toBe('visible@example.com');
 });

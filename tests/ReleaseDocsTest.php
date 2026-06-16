@@ -91,3 +91,20 @@ it('documents the 4.5.0 failed rows xlsx and preview hardening release notes', f
         ->toContain('failedRowsFormat()')
         ->toContain('render at most `25`');
 });
+
+it('documents the 4.5.1 preview worksheet and column limit release notes', function () {
+    $readme = file_get_contents(__DIR__ . '/../README.md');
+    $changelog = file_get_contents(__DIR__ . '/../CHANGELOG.md');
+    $upgrade = file_get_contents(__DIR__ . '/../UPGRADE.md');
+
+    expect($readme)
+        ->toContain('## v4.5.1 Highlights')
+        ->toContain('first visible worksheet')
+        ->toContain('first `5` columns')
+        ->and($changelog)
+        ->toContain('## 4.5.1 - 2026-06-16')
+        ->toContain('skipping hidden worksheets')
+        ->and($upgrade)
+        ->toContain('## Upgrading to 4.5.1')
+        ->toContain('render at most `5` columns');
+});
