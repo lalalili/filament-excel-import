@@ -20,6 +20,7 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Facades\Excel;
+use Throwable;
 
 trait HasExcelImportAction
 {
@@ -114,44 +115,85 @@ trait HasExcelImportAction
             ->action('importData');
     }
 
-    private function importData(): Closure
+    protected function importData(): Closure
     {
-        return function (array $data, $livewire): bool {
-            if (is_callable($this->beforeImportClosure)) {
-                call_user_func($this->beforeImportClosure, $data, $livewire, $this);
-            }
+        return fn (array $data, $livewire): bool => $this->handleImport($data, $livewire);
+    }
 
-            $importObject = $this->makeImportObject($livewire);
-            $this->configureImportObject($importObject);
+    protected function handleImport(array $data, mixed $livewire): bool
+    {
+        $this->callBeforeImport($data, $livewire);
 
-            try {
-                $this->runImport($importObject, $data);
+        $importObject = $this->makeImportObject($livewire);
+        $this->configureImportObject($importObject);
 
-                if ((! $this->queueImport) && is_callable($this->afterImportClosure)) {
-                    call_user_func($this->afterImportClosure, $data, $livewire);
-                }
+        try {
+            $this->runImport($importObject, $data);
 
-                if ((! $this->queueImport) && is_callable($this->afterImportResultClosure)) {
-                    $result = $this->resolveImportResult($importObject);
-                    $result = $this->exportFailedRowsIfEnabled($result, $data);
-                    call_user_func($this->afterImportResultClosure, $result, $data, $livewire, $this);
-                }
+            return $this->completeImport($importObject, $data, $livewire);
+        } catch (Throwable $exception) {
+            return $this->handleImportException($exception, $data, $livewire, $importObject);
+        }
+    }
 
-                if ($this->shouldSendImportSuccessNotification) {
-                    $this->sendSuccessfulImportNotification();
-                }
+    protected function callBeforeImport(array $data, mixed $livewire): void
+    {
+        if (is_callable($this->beforeImportClosure)) {
+            call_user_func($this->beforeImportClosure, $data, $livewire, $this);
+        }
+    }
 
-                return true;
-            } catch (ImportStoppedException $e) {
-                $this->sendStoppedImportNotification($e);
+    protected function callAfterImport(array $data, mixed $livewire): void
+    {
+        if (is_callable($this->afterImportClosure)) {
+            call_user_func($this->afterImportClosure, $data, $livewire);
+        }
+    }
 
-                if ($e->getType() === 'error') {
-                    $this->halt();
-                }
+    protected function completeImport(object $importObject, array $data, mixed $livewire): bool
+    {
+        if (! $this->queueImport) {
+            $this->callAfterImport($data, $livewire);
+            $this->callAfterImportResult($importObject, $data, $livewire);
+        }
 
-                return false;
-            }
-        };
+        if ($this->shouldSendImportSuccessNotification) {
+            $this->sendSuccessfulImportNotification();
+        }
+
+        return true;
+    }
+
+    protected function callAfterImportResult(object $importObject, array $data, mixed $livewire): void
+    {
+        if (! is_callable($this->afterImportResultClosure)) {
+            return;
+        }
+
+        $result = $this->resolveImportResult($importObject);
+        $result = $this->exportFailedRowsIfEnabled($result, $data);
+
+        call_user_func($this->afterImportResultClosure, $result, $data, $livewire, $this);
+    }
+
+    protected function handleImportException(Throwable $exception, array $data, mixed $livewire, object $importObject): bool
+    {
+        if ($exception instanceof ImportStoppedException) {
+            return $this->handleStoppedImport($exception);
+        }
+
+        throw $exception;
+    }
+
+    protected function handleStoppedImport(ImportStoppedException $exception): bool
+    {
+        $this->sendStoppedImportNotification($exception);
+
+        if ($exception->getType() === 'error') {
+            $this->halt();
+        }
+
+        return false;
     }
 
     protected function isRelationshipImport(): bool

@@ -1,5 +1,59 @@
 # Upgrade Guide
 
+## Upgrading to 4.4.0
+
+Version `4.4.0` adds protected extension points for custom action subclasses.
+Existing `ExcelImportAction::make()` usage is unchanged.
+
+If your application extends `ExcelImportAction` only to catch import exceptions,
+override `handleImportException()` instead of copying the full `importData()`
+closure:
+
+```php
+use EightyNine\ExcelImport\ExcelImportAction;
+use Maatwebsite\Excel\Validators\ValidationException;
+use Throwable;
+
+class CustomExcelImportAction extends ExcelImportAction
+{
+    protected function handleImportException(Throwable $exception, array $data, mixed $livewire, object $importObject): bool
+    {
+        if ($exception instanceof ValidationException) {
+            $failure = $exception->failures()[0];
+
+            session()->put('import_result', [
+                'status' => 0,
+                'errMsg' => sprintf(
+                    'Row %d %s: %s',
+                    $failure->row(),
+                    $failure->attribute(),
+                    $failure->errors()[0],
+                ),
+            ]);
+
+            $this->callAfterImport($data, $livewire);
+
+            return true;
+        }
+
+        return parent::handleImportException($exception, $data, $livewire, $importObject);
+    }
+}
+```
+
+The supported protected action pipeline methods are:
+
+- `handleImport(array $data, mixed $livewire): bool`
+- `callBeforeImport(array $data, mixed $livewire): void`
+- `callAfterImport(array $data, mixed $livewire): void`
+- `completeImport(object $importObject, array $data, mixed $livewire): bool`
+- `handleImportException(Throwable $exception, array $data, mixed $livewire, object $importObject): bool`
+- `handleStoppedImport(ImportStoppedException $exception): bool`
+
+Leave unknown exceptions delegated to `parent::handleImportException()` so
+`ImportStoppedException` notifications, error halting, and unhandled exception
+bubbling keep the package defaults.
+
 ## Upgrading to 4.3.0
 
 Version `4.3.0` adds queue lifecycle events. Existing synchronous imports are
@@ -105,29 +159,31 @@ imports into the import class or queue lifecycle handling.
 ### Updating custom action subclasses
 
 If your fork keeps a custom action subclass and it previously called the Excel
-facade directly, reuse the protected pipeline methods instead. This keeps custom
-actions aligned with upload normalization, queue validation, column mapping,
-chunk configuration, and result resolution:
+facade directly, reuse the protected pipeline methods instead of replacing the
+whole action closure. On `4.4.0` or newer, override the smallest hook that fits
+your custom behavior:
 
 ```php
 use EightyNine\ExcelImport\ExcelImportAction;
-use EightyNine\ExcelImport\Support\ImportResult;
+use Throwable;
 
 class CustomExcelImportAction extends ExcelImportAction
 {
-    protected function importWithPackagePipeline(array $data, mixed $livewire): ImportResult
+    protected function handleImportException(Throwable $exception, array $data, mixed $livewire, object $importObject): bool
     {
-        $importObject = $this->makeImportObject($livewire);
+        session()->put('import_result', [
+            'status' => 0,
+            'errMsg' => $exception->getMessage(),
+        ]);
 
-        $this->configureImportObject($importObject);
-        $this->runImport($importObject, $data);
+        $this->callAfterImport($data, $livewire);
 
-        return $this->resolveImportResult($importObject);
+        return true;
     }
 }
 ```
 
-The three main extension points are:
+The lower-level extension points are:
 
 - `makeImportObject($livewire)` creates the configured import class, including
   relationship imports when used from relation managers.

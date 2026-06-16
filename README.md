@@ -52,6 +52,20 @@ monitoring, notifications, or audit logs around queued imports.
 - Queued imports still do not run Livewire `afterImport()` or
   `afterImportResult()` hooks immediately.
 
+## v4.4.0 Highlights
+
+Version `4.4.0` makes custom action subclasses easier to keep compatible with
+the package import pipeline.
+
+- `importData()` is now a protected extension point instead of a private
+  implementation detail.
+- Custom actions can override `handleImportException()` to translate validation
+  errors, write session state, or delegate unknown exceptions back to the
+  package.
+- Shared protected hooks keep custom actions aligned with upload normalization,
+  queue guards, failed rows CSV, result callbacks, success notifications, and
+  stopped import handling.
+
 ## 🛠️ Be Part of the Journey
 
 Hi, I'm Eighty Nine. I created excel import plugin to solve real problems I faced as a developer. Your sponsorship will allow me to dedicate more time to enhancing these tools and helping more people. [Become a sponsor](https://github.com/sponsors/eighty9nine) and join me in making a positive impact on the developer community.
@@ -706,6 +720,49 @@ class MyExistingImport implements ToCollection, WithHeadingRow
 The exception constructor accepts:
 - `$message` (string) - The message to show to the user
 - `$type` (string) - The notification type: 'error', 'warning', 'info', or 'success' (default: 'error')
+
+#### Extending the Action Pipeline
+
+If your application extends `ExcelImportAction`, prefer overriding the protected
+pipeline hooks instead of replacing the whole action closure. For example, a
+custom action can catch Laravel Excel validation failures, keep an application
+session contract, and let all other exceptions use the package defaults:
+
+```php
+use EightyNine\ExcelImport\ExcelImportAction;
+use Maatwebsite\Excel\Validators\ValidationException;
+use Throwable;
+
+class CustomExcelImportAction extends ExcelImportAction
+{
+    protected function handleImportException(Throwable $exception, array $data, mixed $livewire, object $importObject): bool
+    {
+        if ($exception instanceof ValidationException) {
+            $failure = $exception->failures()[0];
+
+            session()->put('import_result', [
+                'status' => 0,
+                'errMsg' => sprintf(
+                    'Row %d %s: %s',
+                    $failure->row(),
+                    $failure->attribute(),
+                    $failure->errors()[0],
+                ),
+            ]);
+
+            $this->callAfterImport($data, $livewire);
+
+            return true;
+        }
+
+        return parent::handleImportException($exception, $data, $livewire, $importObject);
+    }
+}
+```
+
+The main protected hooks are `handleImport()`, `callBeforeImport()`,
+`callAfterImport()`, `completeImport()`, `handleImportException()`, and
+`handleStoppedImport()`.
 
 
 ```bash

@@ -2,6 +2,12 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
+## 4.4.0 - 2026-06-16
+
+- Add protected import pipeline extension points for custom action subclasses.
+- Allow custom actions to override `handleImportException()` instead of replacing the full `importData()` closure.
+- Keep default `ImportStoppedException` notifications and error halting behavior in a reusable `handleStoppedImport()` method.
+
 ## 4.3.0 - 2026-06-16
 
 - Add queue lifecycle events: `ImportQueued`, `ImportStarted`, `ImportCompleted`, and `ImportFailed`.
