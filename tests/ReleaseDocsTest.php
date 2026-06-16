@@ -37,3 +37,21 @@ it('documents the 4.2.0 failed rows csv release notes and upgrade path', functio
         ->toContain('## Upgrading to 4.2.0')
         ->toContain('Queued imports do not write failed row summaries');
 });
+
+it('documents the 4.3.0 queue observability release notes and upgrade path', function () {
+    $readme = file_get_contents(__DIR__ . '/../README.md');
+    $changelog = file_get_contents(__DIR__ . '/../CHANGELOG.md');
+    $upgrade = file_get_contents(__DIR__ . '/../UPGRADE.md');
+
+    expect($readme)
+        ->toContain('## v4.3.0 Highlights')
+        ->toContain('ImportQueued')
+        ->toContain('ImportCompleted')
+        ->toContain('horizon:snapshot')
+        ->and($changelog)
+        ->toContain('## 4.3.0 - 2026-06-16')
+        ->toContain('ImportFailed')
+        ->and($upgrade)
+        ->toContain('## Upgrading to 4.3.0')
+        ->toContain('Custom queued import classes still receive `ImportQueued`');
+});

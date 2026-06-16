@@ -2,11 +2,15 @@
 
 namespace EightyNine\ExcelImport;
 
+use EightyNine\ExcelImport\Concerns\DispatchesQueuedImportEvents;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithEvents;
 
-class QueuedEnhancedDefaultImport extends EnhancedDefaultImport implements ShouldQueue, WithChunkReading
+class QueuedEnhancedDefaultImport extends EnhancedDefaultImport implements ShouldQueue, WithChunkReading, WithEvents
 {
+    use DispatchesQueuedImportEvents;
+
     protected int $chunkSize = 1000;
 
     public function setChunkSize(int $chunkSize): void

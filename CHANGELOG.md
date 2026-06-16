@@ -2,6 +2,12 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
+## 4.3.0 - 2026-06-16
+
+- Add queue lifecycle events: `ImportQueued`, `ImportStarted`, `ImportCompleted`, and `ImportFailed`.
+- Dispatch `ImportQueued` after `queueImport()` successfully hands the import to Laravel Excel.
+- Dispatch package lifecycle events from built-in queued imports through Laravel Excel `WithEvents`.
+
 ## 4.2.0 - 2026-06-16
 
 - Add opt-in failed rows CSV export with `downloadFailedRows()`.

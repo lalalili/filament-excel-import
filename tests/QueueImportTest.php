@@ -1,12 +1,24 @@
 <?php
 
 use EightyNine\ExcelImport\DefaultImport;
+use EightyNine\ExcelImport\EnhancedDefaultImport;
+use EightyNine\ExcelImport\Events\ImportCompleted;
+use EightyNine\ExcelImport\Events\ImportFailed;
+use EightyNine\ExcelImport\Events\ImportQueued;
+use EightyNine\ExcelImport\Events\ImportStarted;
 use EightyNine\ExcelImport\ExcelImportAction;
 use EightyNine\ExcelImport\QueuedDefaultImport;
+use EightyNine\ExcelImport\QueuedEnhancedDefaultImport;
 use EightyNine\ExcelImport\Support\ImportResult;
 use EightyNine\ExcelImport\Tables\ExcelImportRelationshipAction;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterImport as LaravelExcelAfterImport;
+use Maatwebsite\Excel\Events\BeforeImport as LaravelExcelBeforeImport;
+use Maatwebsite\Excel\Events\ImportFailed as LaravelExcelImportFailed;
 use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Reader;
 
 it('queues default imports with the configured chunk size', function () {
     Excel::fake();
@@ -26,6 +38,98 @@ it('queues default imports with the configured chunk size', function () {
     ]);
 
     Excel::assertQueued('people.xlsx', config('filesystems.default'), fn (QueuedDefaultImport $queuedImport): bool => $queuedImport === $import);
+});
+
+it('dispatches an event after queueing an import', function () {
+    Excel::fake();
+    Event::fake([ImportQueued::class]);
+
+    $action = TestableQueueExcelImportAction::make()
+        ->queueImport()
+        ->disk('imports');
+
+    $import = $action->makeImportObjectForTest(new QueueImportLivewire);
+    $action->configureImportObjectForTest($import);
+    $action->runImportForTest($import, [
+        'upload' => 'people.xlsx',
+    ]);
+
+    Event::assertDispatched(
+        ImportQueued::class,
+        fn (ImportQueued $event): bool => $event->import === $import
+            && $event->path === 'people.xlsx'
+            && $event->disk === 'imports'
+    );
+});
+
+it('adds laravel excel lifecycle events to built in queued imports', function () {
+    $defaultAction = TestableQueueExcelImportAction::make()
+        ->queueImport();
+
+    $defaultImport = $defaultAction->makeImportObjectForTest(new QueueImportLivewire);
+
+    $enhancedAction = TestableQueueExcelImportAction::make()
+        ->use(EnhancedDefaultImport::class)
+        ->queueImport();
+
+    $enhancedImport = $enhancedAction->makeImportObjectForTest(new QueueImportLivewire);
+
+    expect($defaultImport)
+        ->toBeInstanceOf(QueuedDefaultImport::class)
+        ->toBeInstanceOf(WithEvents::class)
+        ->and($enhancedImport)
+        ->toBeInstanceOf(QueuedEnhancedDefaultImport::class)
+        ->toBeInstanceOf(WithEvents::class)
+        ->and(array_keys($defaultImport->registerEvents()))
+        ->toBe([
+            LaravelExcelBeforeImport::class,
+            LaravelExcelAfterImport::class,
+            LaravelExcelImportFailed::class,
+        ])
+        ->and(array_keys($enhancedImport->registerEvents()))
+        ->toBe([
+            LaravelExcelBeforeImport::class,
+            LaravelExcelAfterImport::class,
+            LaravelExcelImportFailed::class,
+        ]);
+});
+
+it('dispatches package lifecycle events from built in queued imports', function () {
+    Event::fake([
+        ImportStarted::class,
+        ImportCompleted::class,
+        ImportFailed::class,
+    ]);
+
+    $import = new QueuedDefaultImport(QueueImportTestModel::class);
+    $import->collection(collect([
+        collect(['email' => 'person@example.com']),
+    ]));
+
+    $events = $import->registerEvents();
+    $reader = $this->createMock(Reader::class);
+    $exception = new RuntimeException('Import crashed.');
+
+    call_user_func($events[LaravelExcelBeforeImport::class], new LaravelExcelBeforeImport($reader, $import));
+    call_user_func($events[LaravelExcelAfterImport::class], new LaravelExcelAfterImport($reader, $import));
+    call_user_func($events[LaravelExcelImportFailed::class], new LaravelExcelImportFailed($exception));
+
+    Event::assertDispatched(
+        ImportStarted::class,
+        fn (ImportStarted $event): bool => $event->import === $import
+    );
+
+    Event::assertDispatched(
+        ImportCompleted::class,
+        fn (ImportCompleted $event): bool => $event->import === $import
+            && $event->result->created === 1
+    );
+
+    Event::assertDispatched(
+        ImportFailed::class,
+        fn (ImportFailed $event): bool => $event->import === $import
+            && $event->exception === $exception
+    );
 });
 
 it('normalizes array upload state before synchronous imports', function () {
@@ -427,7 +531,13 @@ class QueueImportLivewire
     }
 }
 
-class QueueImportTestModel {}
+class QueueImportTestModel
+{
+    public static function create(array $data): void
+    {
+        //
+    }
+}
 
 class NonQueueableCustomImport extends DefaultImport {}
 

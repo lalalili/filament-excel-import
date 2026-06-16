@@ -1,5 +1,27 @@
 # Upgrade Guide
 
+## Upgrading to 4.3.0
+
+Version `4.3.0` adds queue lifecycle events. Existing synchronous imports are
+unchanged, and queued imports still do not run Livewire `afterImport()` or
+`afterImportResult()` hooks immediately.
+
+New package events are available under `EightyNine\ExcelImport\Events`:
+
+- `ImportQueued`
+- `ImportStarted`
+- `ImportCompleted`
+- `ImportFailed`
+
+`ImportQueued` is dispatched after `queueImport()` successfully dispatches the
+Laravel Excel queued import. Built-in queued imports dispatch `ImportStarted`,
+`ImportCompleted`, and `ImportFailed` from Laravel Excel `WithEvents` while the
+worker processes the import.
+
+Custom queued import classes still receive `ImportQueued` from the action. Add
+your own Laravel Excel `WithEvents` implementation if you need worker lifecycle
+events for custom imports.
+
 ## Upgrading to 4.2.0
 
 Version `4.2.0` adds opt-in failed rows CSV export. Existing imports keep the

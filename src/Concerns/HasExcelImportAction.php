@@ -6,6 +6,7 @@ use Closure;
 use EightyNine\ExcelImport\Contracts\HasImportResult;
 use EightyNine\ExcelImport\DefaultImport;
 use EightyNine\ExcelImport\EnhancedDefaultImport;
+use EightyNine\ExcelImport\Events\ImportQueued;
 use EightyNine\ExcelImport\Exceptions\ImportStoppedException;
 use EightyNine\ExcelImport\QueuedDefaultImport;
 use EightyNine\ExcelImport\QueuedEnhancedDefaultImport;
@@ -13,6 +14,7 @@ use EightyNine\ExcelImport\Support\FailedRowsCsvExporter;
 use EightyNine\ExcelImport\Support\ImportResult;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -237,7 +239,11 @@ trait HasExcelImportAction
                 throw new InvalidArgumentException('Queued imports must implement ShouldQueue and WithChunkReading.');
             }
 
-            Excel::queueImport($importObject, $this->importPath(['upload' => $upload]), $this->uploadDisk());
+            $path = $this->importPath(['upload' => $upload]);
+            $disk = $this->uploadDisk();
+
+            Excel::queueImport($importObject, $path, $disk);
+            Event::dispatch(new ImportQueued($importObject, $path, $disk));
 
             return;
         }

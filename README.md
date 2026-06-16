@@ -40,6 +40,18 @@ By default, imports do not write failed row files or persist notification state.
 - `ImportResult` now exposes `failedRowsPath`, `failedRowsDisk`, and
   `failedRowsDownloadName` metadata for `afterImportResult()` callbacks.
 
+## v4.3.0 Highlights
+
+Version `4.3.0` adds queue lifecycle events for applications that need import
+monitoring, notifications, or audit logs around queued imports.
+
+- `ImportQueued` is dispatched after `queueImport()` successfully queues an
+  import with Laravel Excel.
+- Built-in queued imports dispatch `ImportStarted`, `ImportCompleted`, and
+  `ImportFailed` through Laravel Excel `WithEvents`.
+- Queued imports still do not run Livewire `afterImport()` or
+  `afterImportResult()` hooks immediately.
+
 ## 🛠️ Be Part of the Journey
 
 Hi, I'm Eighty Nine. I created excel import plugin to solve real problems I faced as a developer. Your sponsorship will allow me to dedicate more time to enhancing these tools and helping more people. [Become a sponsor](https://github.com/sponsors/eighty9nine) and join me in making a positive impact on the developer community.
@@ -372,6 +384,75 @@ mappings, and validation mutators are not queue-safe; move that logic into a
 custom import class when queueing.
 Because queued imports finish later in a worker, `afterImport()` and
 `afterImportResult()` only run for synchronous imports.
+
+### Observing queued imports
+
+Queued imports dispatch package events you can listen to from your application:
+
+```php
+use EightyNine\ExcelImport\Events\ImportCompleted;
+use EightyNine\ExcelImport\Events\ImportFailed;
+use EightyNine\ExcelImport\Events\ImportQueued;
+use EightyNine\ExcelImport\Events\ImportStarted;
+```
+
+`ImportQueued` is dispatched by the action after Laravel Excel accepts the
+queued import:
+
+```php
+use EightyNine\ExcelImport\Events\ImportQueued;
+
+public function handle(ImportQueued $event): void
+{
+    logger()->info('Excel import queued', [
+        'path' => $event->path,
+        'disk' => $event->disk,
+        'import' => $event->import::class,
+    ]);
+}
+```
+
+Built-in queued imports dispatch lifecycle events while the worker processes the
+file:
+
+```php
+use EightyNine\ExcelImport\Events\ImportCompleted;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Notification;
+
+class SendImportFinishedNotification implements ShouldQueue
+{
+    public function handle(ImportCompleted $event): void
+    {
+        Notification::route('mail', 'imports@example.com')
+            ->notify(new ImportFinishedNotification($event->result));
+    }
+}
+```
+
+`ImportFailed` exposes the thrown exception:
+
+```php
+use EightyNine\ExcelImport\Events\ImportFailed;
+
+public function handle(ImportFailed $event): void
+{
+    report($event->exception);
+}
+```
+
+When using Horizon, keep Excel imports on a queue with enough workers for the
+expected spreadsheet size and monitor it from `/horizon`. Horizon requires the
+Redis queue driver. To populate Horizon metrics, schedule snapshots:
+
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('horizon:snapshot')->everyFiveMinutes();
+```
+
+For queue wait alerts, configure Horizon notification routes in your
+`HorizonServiceProvider` and set wait thresholds in `config/horizon.php`.
 
 ### Data Validation
 
