@@ -2,11 +2,10 @@
 
 namespace EightyNine\ExcelImport\Support;
 
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithLimit;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
-class PreviewRowsImport implements WithHeadingRow, WithLimit, WithMultipleSheets
+class PreviewRowsImport implements WithLimit, WithMultipleSheets
 {
     public function __construct(
         protected int $limit,
@@ -15,7 +14,7 @@ class PreviewRowsImport implements WithHeadingRow, WithLimit, WithMultipleSheets
 
     public function limit(): int
     {
-        return max(1, $this->limit);
+        return max(2, $this->limit + 1);
     }
 
     public function sheets(): array

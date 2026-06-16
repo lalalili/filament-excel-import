@@ -2,6 +2,11 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
+## 4.5.2 - 2026-06-16
+
+- Preserve non-English preview headers instead of applying heading formatting.
+- Fill blank preview headers with Excel column letters.
+
 ## 4.5.1 - 2026-06-16
 
 - Limit upload preview tables to 5 rendered columns.

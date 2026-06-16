@@ -1,5 +1,11 @@
 # Upgrade Guide
 
+## Upgrading to 4.5.2
+
+Upload previews now preserve non-English header labels. Blank header cells are
+shown with Excel column letters, for example `C`, so preview columns are not
+collapsed when a worksheet has localized or partially blank headings.
+
 ## Upgrading to 4.5.1
 
 Upload preview tables now render at most `5` columns. Multi-sheet workbooks are

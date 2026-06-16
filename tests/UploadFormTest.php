@@ -10,6 +10,7 @@ use Maatwebsite\Excel\ExcelServiceProvider;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xls;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 it('applies custom upload rules max size and mime type mappings', function () {
@@ -326,4 +327,51 @@ it('previews the first visible worksheet and ignores hidden worksheets', functio
         ->toHaveCount(1)
         ->and($rows[0]['name'])->toBe('Visible Person')
         ->and($rows[0]['email'])->toBe('visible@example.com');
+});
+
+it('preserves non english preview headers and fills blank headers with column letters', function () {
+    app()->register(ExcelServiceProvider::class);
+
+    $path = tempnam(sys_get_temp_dir(), 'preview-non-english-headers-') . '.xls';
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->fromArray([
+        ['經銷商', '據點', null, '部門代碼', '經銷商代碼'],
+        ['電智捷', '內湖展示中心', 'SSI', '12V00', 'LL'],
+    ]);
+
+    (new Xls($spreadsheet))->save($path);
+    $spreadsheet->disconnectWorksheets();
+
+    $action = new class
+    {
+        use CanCustomiseActionSetup;
+        use HasSampleExcelFile;
+        use HasUploadForm;
+
+        public function previewRowsForTest(string $path): array
+        {
+            $this->previewRows(5);
+
+            return $this->readPreviewRows($path)->toArray();
+        }
+    };
+
+    try {
+        $rows = $action->previewRowsForTest($path);
+    } finally {
+        @unlink($path);
+    }
+
+    expect($rows)
+        ->toHaveCount(1)
+        ->and(array_keys($rows[0]))->toBe(['經銷商', '據點', 'C', '部門代碼', '經銷商代碼'])
+        ->and($rows[0])->toMatchArray([
+            '經銷商' => '電智捷',
+            '據點' => '內湖展示中心',
+            'C' => 'SSI',
+            '部門代碼' => '12V00',
+            '經銷商代碼' => 'LL',
+        ]);
 });

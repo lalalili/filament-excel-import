@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
@@ -319,7 +320,7 @@ trait HasUploadForm
             ? Excel::toCollection($previewImport, $upload)
             : Excel::toCollection($previewImport, $upload, $disk);
 
-        return $sheets->first() ?? collect();
+        return $this->formatPreviewRows($sheets->first() ?? collect());
     }
 
     protected function firstVisibleSheetIndex(mixed $upload, ?string $disk): ?int
@@ -373,6 +374,75 @@ trait HasUploadForm
         }
 
         return $upload;
+    }
+
+    protected function formatPreviewRows(Collection $rows): Collection
+    {
+        if ($rows->isEmpty()) {
+            return collect();
+        }
+
+        $rows = $rows
+            ->map(fn (Collection | array $row): array => $row instanceof Collection ? $row->toArray() : $row)
+            ->values();
+
+        $headers = $this->previewHeaders((array) $rows->shift());
+
+        return $rows
+            ->take($this->previewRows ?? 10)
+            ->map(fn (array $row): array => $this->combinePreviewRow($headers, $row))
+            ->filter(fn (array $row): bool => collect($row)->contains(fn (mixed $value): bool => filled($value)))
+            ->values();
+    }
+
+    /**
+     * @param  array<int, mixed>  $rawHeaders
+     * @return list<string>
+     */
+    protected function previewHeaders(array $rawHeaders): array
+    {
+        return array_values(array_map(
+            fn (mixed $header, int $index): string => filled($header)
+                ? (string) $header
+                : Coordinate::stringFromColumnIndex($index + 1),
+            $rawHeaders,
+            array_keys($rawHeaders),
+        ));
+    }
+
+    /**
+     * @param  list<string>  $headers
+     * @param  array<int, mixed>  $row
+     * @return array<string, mixed>
+     */
+    protected function combinePreviewRow(array $headers, array $row): array
+    {
+        $combined = [];
+
+        foreach ($headers as $index => $header) {
+            $key = $this->uniquePreviewHeader($header, $combined);
+            $combined[$key] = $row[$index] ?? null;
+        }
+
+        return $combined;
+    }
+
+    /**
+     * @param  array<string, mixed>  $existing
+     */
+    protected function uniquePreviewHeader(string $header, array $existing): string
+    {
+        if (! array_key_exists($header, $existing)) {
+            return $header;
+        }
+
+        $suffix = 2;
+
+        while (array_key_exists("{$header} ({$suffix})", $existing)) {
+            $suffix++;
+        }
+
+        return "{$header} ({$suffix})";
     }
 
     protected function isTemporaryUpload(mixed $upload): bool

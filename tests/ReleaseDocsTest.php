@@ -108,3 +108,20 @@ it('documents the 4.5.1 preview worksheet and column limit release notes', funct
         ->toContain('## Upgrading to 4.5.1')
         ->toContain('render at most `5` columns');
 });
+
+it('documents the 4.5.2 localized preview header release notes', function () {
+    $readme = file_get_contents(__DIR__ . '/../README.md');
+    $changelog = file_get_contents(__DIR__ . '/../CHANGELOG.md');
+    $upgrade = file_get_contents(__DIR__ . '/../UPGRADE.md');
+
+    expect($readme)
+        ->toContain('## v4.5.2 Highlights')
+        ->toContain('Non-English preview headers')
+        ->toContain('Excel column letters')
+        ->and($changelog)
+        ->toContain('## 4.5.2 - 2026-06-16')
+        ->toContain('Preserve non-English preview headers')
+        ->and($upgrade)
+        ->toContain('## Upgrading to 4.5.2')
+        ->toContain('Blank header cells');
+});
