@@ -2,6 +2,7 @@
 
 namespace EightyNine\ExcelImport;
 
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 
@@ -12,7 +13,7 @@ class SampleExcelExport implements FromCollection, WithHeadings
     ) {}
 
     /**
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
     public function collection()
     {

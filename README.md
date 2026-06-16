@@ -8,6 +8,26 @@ This package adds a new feature to your filament resource, allowing you to easil
 _This package brings the maatwebsite/laravel-excel functionalities to filament. You can use all the maatwebsite/laravel-excel features in your laravel project_
 
 
+## v4.1.0 Highlights
+
+Version `4.1.0` stabilizes the 4.x import pipeline for PHP 8.4, Laravel 13, and
+Filament 5 while keeping support for the existing 4.x public API.
+
+- `ImportResult` and `afterImportResult()` expose created, updated, skipped,
+  failed, and row error counts for synchronous imports.
+- `queueImport()` dispatches compatible imports through Laravel Excel queues and
+  uses chunked queueable variants for the built-in default resource imports.
+- `previewRows()` shows a limited spreadsheet preview in the import modal before
+  the user submits the import.
+- `columnMapping()` maps uploaded headings to model attributes in default
+  imports.
+- `fileRules()`, `maxFileSize()`, and `mimeTypeMap()` make upload validation
+  stricter without replacing the upload field.
+- `sampleColumns()` and `sampleButtonLabel()` simplify sample file setup.
+
+See [UPGRADE.md](UPGRADE.md) for migration notes from older fork commits and
+custom action subclasses.
+
 ## 🛠️ Be Part of the Journey
 
 Hi, I'm Eighty Nine. I created excel import plugin to solve real problems I faced as a developer. Your sponsorship will allow me to dedicate more time to enhancing these tools and helping more people. [Become a sponsor](https://github.com/sponsors/eighty9nine) and join me in making a positive impact on the developer community.

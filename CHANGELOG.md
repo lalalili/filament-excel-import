@@ -2,7 +2,7 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
-## 4.x-dev
+## 4.1.0 - 2026-06-16
 
 - Add `ImportResult` and `afterImportResult()` for import statistics.
 - Add upload hardening helpers: `fileRules()`, `maxFileSize()`, and `mimeTypeMap()`.
