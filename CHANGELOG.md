@@ -2,6 +2,12 @@
 
 All notable changes to `filament-excel-import` will be documented in this file.
 
+## 4.2.0 - 2026-06-16
+
+- Add opt-in failed rows CSV export with `downloadFailedRows()`.
+- Add failed rows storage configuration through `failedRowsDisk()`, `failedRowsDirectory()`, and `failedRowsFileName()`.
+- Add failed rows metadata to `ImportResult`: `failedRowsPath`, `failedRowsDisk`, and `failedRowsDownloadName`.
+
 ## 4.1.0 - 2026-06-16
 
 - Add `ImportResult` and `afterImportResult()` for import statistics.

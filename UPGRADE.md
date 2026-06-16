@@ -1,5 +1,33 @@
 # Upgrade Guide
 
+## Upgrading to 4.2.0
+
+Version `4.2.0` adds opt-in failed rows CSV export. Existing imports keep the
+same behavior unless `downloadFailedRows()` is enabled.
+
+```php
+use EightyNine\ExcelImport\ExcelImportAction;
+use EightyNine\ExcelImport\Support\ImportResult;
+
+ExcelImportAction::make()
+    ->downloadFailedRows()
+    ->failedRowsDisk('local')
+    ->failedRowsDirectory('imports/failed')
+    ->failedRowsFileName('people-errors.csv')
+    ->afterImportResult(function (ImportResult $result): void {
+        $path = $result->failedRowsPath;
+        $disk = $result->failedRowsDisk;
+        $downloadName = $result->failedRowsDownloadName;
+    });
+```
+
+Only `ImportResult::$errors` rows are exported. If an import has no row-level
+errors, no CSV is written and the failed rows metadata remains `null`.
+
+Queued imports do not write failed row summaries from the action instance
+because queued work finishes later in a worker and Livewire result hooks are not
+run immediately.
+
 ## Upgrading to 4.1.0
 
 Version `4.1.0` stabilizes the 4.x import pipeline introduced after the older

@@ -9,9 +9,12 @@ use EightyNine\ExcelImport\EnhancedDefaultImport;
 use EightyNine\ExcelImport\Exceptions\ImportStoppedException;
 use EightyNine\ExcelImport\QueuedDefaultImport;
 use EightyNine\ExcelImport\QueuedEnhancedDefaultImport;
+use EightyNine\ExcelImport\Support\FailedRowsCsvExporter;
 use EightyNine\ExcelImport\Support\ImportResult;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Facades\Excel;
@@ -27,10 +30,46 @@ trait HasExcelImportAction
 
     protected array $importClassAttributes = [];
 
+    protected bool $downloadFailedRows = false;
+
+    protected ?string $failedRowsDisk = null;
+
+    protected string $failedRowsDirectory = 'excel-import/failed-rows';
+
+    protected string | Closure $failedRowsFileName = 'failed-rows.csv';
+
     public function use(?string $class = null, ...$attributes): static
     {
         $this->importClass = $class ?: DefaultImport::class;
         $this->importClassAttributes = $attributes;
+
+        return $this;
+    }
+
+    public function downloadFailedRows(bool $condition = true): static
+    {
+        $this->downloadFailedRows = $condition;
+
+        return $this;
+    }
+
+    public function failedRowsDisk(?string $disk): static
+    {
+        $this->failedRowsDisk = $disk;
+
+        return $this;
+    }
+
+    public function failedRowsDirectory(string $directory): static
+    {
+        $this->failedRowsDirectory = trim($directory, '/');
+
+        return $this;
+    }
+
+    public function failedRowsFileName(string | Closure $name): static
+    {
+        $this->failedRowsFileName = $name;
 
         return $this;
     }
@@ -92,6 +131,7 @@ trait HasExcelImportAction
 
                 if ((! $this->queueImport) && is_callable($this->afterImportResultClosure)) {
                     $result = $this->resolveImportResult($importObject);
+                    $result = $this->exportFailedRowsIfEnabled($result, $data);
                     call_user_func($this->afterImportResultClosure, $result, $data, $livewire, $this);
                 }
 
@@ -230,6 +270,50 @@ trait HasExcelImportAction
         }
 
         return ImportResult::empty();
+    }
+
+    protected function exportFailedRowsIfEnabled(ImportResult $result, array $data): ImportResult
+    {
+        if (! $this->downloadFailedRows || $this->queueImport || $result->errors === []) {
+            return $result;
+        }
+
+        $disk = $this->resolvedFailedRowsDisk();
+        $downloadName = $this->resolvedFailedRowsFileName($result, $data);
+        $path = $this->failedRowsPath($downloadName);
+        $csv = (new FailedRowsCsvExporter)->export($result);
+
+        Storage::disk($disk)->put($path, $csv);
+
+        return $result->withFailedRows($path, $disk, $downloadName);
+    }
+
+    protected function resolvedFailedRowsDisk(): string
+    {
+        return $this->failedRowsDisk ?? $this->uploadDisk();
+    }
+
+    protected function resolvedFailedRowsFileName(ImportResult $result, array $data): string
+    {
+        $name = $this->failedRowsFileName instanceof Closure
+            ? call_user_func($this->failedRowsFileName, $result, $data, $this)
+            : $this->failedRowsFileName;
+
+        $name = basename(trim((string) $name));
+
+        if ($name === '') {
+            throw new InvalidArgumentException('Failed rows file name cannot be empty.');
+        }
+
+        return Str::endsWith($name, '.csv') ? $name : $name . '.csv';
+    }
+
+    protected function failedRowsPath(string $downloadName): string
+    {
+        $fileName = basename($downloadName);
+        $directory = trim($this->failedRowsDirectory, '/');
+
+        return $directory === '' ? $fileName : $directory . '/' . $fileName;
     }
 
     protected function sendStoppedImportNotification(ImportStoppedException $exception): void

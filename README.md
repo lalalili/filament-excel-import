@@ -28,6 +28,18 @@ Filament 5 while keeping support for the existing 4.x public API.
 See [UPGRADE.md](UPGRADE.md) for migration notes from older fork commits and
 custom action subclasses.
 
+## v4.2.0 Highlights
+
+Version `4.2.0` adds an opt-in failed rows CSV summary for synchronous imports.
+By default, imports do not write failed row files or persist notification state.
+
+- `downloadFailedRows()` writes `ImportResult::$errors` to CSV after a
+  synchronous import.
+- `failedRowsDisk()`, `failedRowsDirectory()`, and `failedRowsFileName()`
+  control where the CSV is stored.
+- `ImportResult` now exposes `failedRowsPath`, `failedRowsDisk`, and
+  `failedRowsDownloadName` metadata for `afterImportResult()` callbacks.
+
 ## 🛠️ Be Part of the Journey
 
 Hi, I'm Eighty Nine. I created excel import plugin to solve real problems I faced as a developer. Your sponsorship will allow me to dedicate more time to enhancing these tools and helping more people. [Become a sponsor](https://github.com/sponsors/eighty9nine) and join me in making a positive impact on the developer community.
@@ -279,6 +291,34 @@ use EightyNine\ExcelImport\Support\ImportResult;
         // $result->created, $result->updated, $result->skipped, $result->failed
     });
 ```
+
+### Downloading failed rows
+
+Use `downloadFailedRows()` when a custom import returns row-level errors in its
+`ImportResult`. The package writes a CSV summary only when this option is
+enabled and `ImportResult::$errors` is not empty:
+
+```php
+use EightyNine\ExcelImport\Support\ImportResult;
+
+\EightyNine\ExcelImport\ExcelImportAction::make()
+    ->downloadFailedRows()
+    ->failedRowsDisk('local')
+    ->failedRowsDirectory('imports/failed')
+    ->failedRowsFileName(fn (ImportResult $result): string => "failed-rows-{$result->failed}.csv")
+    ->afterImportResult(function (ImportResult $result): void {
+        // $result->failedRowsDisk
+        // $result->failedRowsPath
+        // $result->failedRowsDownloadName
+    });
+```
+
+The default directory is `excel-import/failed-rows`, and the default download
+name is `failed-rows.csv`. File names are normalized to `.csv`.
+
+Failed rows CSV export is synchronous-only. Queued imports finish later in a
+worker, so they do not run Livewire result hooks or write failed row summaries
+from the action instance.
 
 ### Column mapping
 

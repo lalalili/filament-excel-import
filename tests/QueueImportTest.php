@@ -5,6 +5,7 @@ use EightyNine\ExcelImport\ExcelImportAction;
 use EightyNine\ExcelImport\QueuedDefaultImport;
 use EightyNine\ExcelImport\Support\ImportResult;
 use EightyNine\ExcelImport\Tables\ExcelImportRelationshipAction;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 it('queues default imports with the configured chunk size', function () {
@@ -170,6 +171,91 @@ it('does not run completion hooks immediately for queued imports', function () {
     expect($result)->toBeTrue()
         ->and($afterImportWasCalled)->toBeFalse()
         ->and($afterImportResultWasCalled)->toBeFalse();
+});
+
+it('does not write failed rows by default', function () {
+    Storage::fake('imports');
+
+    $importResult = null;
+
+    $action = TestableSuccessfulExcelImportAction::make()
+        ->failedRowsDisk('imports')
+        ->processCollectionUsing(fn (): ImportResult => ImportResult::make(
+            failed: 1,
+            errors: [
+                ['row' => 2, 'attribute' => 'email', 'message' => 'Invalid email'],
+            ],
+        ))
+        ->afterImportResult(function (ImportResult $result) use (&$importResult): void {
+            $importResult = $result;
+        });
+
+    $action->runActionForTest([
+        'upload' => 'people.xlsx',
+    ], new QueueImportLivewire);
+
+    Storage::disk('imports')->assertMissing('excel-import/failed-rows/failed-rows.csv');
+
+    expect($importResult)->toBeInstanceOf(ImportResult::class)
+        ->and($importResult?->failedRowsPath)->toBeNull()
+        ->and($importResult?->failedRowsDisk)->toBeNull()
+        ->and($importResult?->failedRowsDownloadName)->toBeNull();
+});
+
+it('writes failed row errors to csv when opted in', function () {
+    Storage::fake('imports');
+
+    $importResult = null;
+
+    $action = TestableSuccessfulExcelImportAction::make()
+        ->downloadFailedRows()
+        ->failedRowsDisk('imports')
+        ->failedRowsDirectory('imports/errors')
+        ->failedRowsFileName(fn (ImportResult $result): string => "people-errors-{$result->failed}")
+        ->processCollectionUsing(fn (): ImportResult => ImportResult::make(
+            failed: 2,
+            errors: [
+                ['row' => 2, 'attribute' => 'email', 'message' => 'Invalid email', 'values' => ['email' => 'bad']],
+                ['row' => 3, 'attribute' => 'name', 'message' => 'Required'],
+            ],
+        ))
+        ->afterImportResult(function (ImportResult $result) use (&$importResult): void {
+            $importResult = $result;
+        });
+
+    $action->runActionForTest([
+        'upload' => 'people.xlsx',
+    ], new QueueImportLivewire);
+
+    Storage::disk('imports')->assertExists('imports/errors/people-errors-2.csv');
+
+    expect($importResult)->toBeInstanceOf(ImportResult::class)
+        ->and($importResult?->failedRowsPath)->toBe('imports/errors/people-errors-2.csv')
+        ->and($importResult?->failedRowsDisk)->toBe('imports')
+        ->and($importResult?->failedRowsDownloadName)->toBe('people-errors-2.csv')
+        ->and(Storage::disk('imports')->get('imports/errors/people-errors-2.csv'))
+        ->toBe("row,attribute,message,values\n2,email,\"Invalid email\",\"{\"\"email\"\":\"\"bad\"\"}\"\n3,name,Required,\n");
+});
+
+it('does not write failed rows for queued imports', function () {
+    Storage::fake('imports');
+    Excel::fake();
+
+    $action = TestableQueueExcelImportAction::make()
+        ->queueImport()
+        ->downloadFailedRows()
+        ->failedRowsDisk('imports')
+        ->afterImportResult(function (): void {
+            throw new RuntimeException('Queued imports should not run result hooks immediately.');
+        });
+
+    $result = $action->runActionForTest([
+        'upload' => 'people.xlsx',
+    ], new QueueImportLivewire);
+
+    Storage::disk('imports')->assertMissing('excel-import/failed-rows/failed-rows.csv');
+
+    expect($result)->toBeTrue();
 });
 
 it('requires custom queued imports to be queueable and chunked', function () {

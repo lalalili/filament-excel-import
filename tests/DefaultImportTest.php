@@ -33,6 +33,9 @@ it('creates records with mapped columns and exposes an import result', function 
         'skipped' => 0,
         'failed' => 0,
         'errors' => [],
+        'failedRowsPath' => null,
+        'failedRowsDisk' => null,
+        'failedRowsDownloadName' => null,
     ]);
 });
 
@@ -67,6 +70,28 @@ it('summarizes import result totals and errors', function () {
         ->and($result->hasErrors())->toBeTrue()
         ->and(ImportResult::empty()->total())->toBe(0)
         ->and(ImportResult::empty()->hasErrors())->toBeFalse();
+});
+
+it('stores failed rows download metadata immutably', function () {
+    $result = ImportResult::make(
+        failed: 1,
+        errors: [
+            ['row' => 5, 'message' => 'Invalid email'],
+        ],
+    );
+
+    $resultWithFailedRows = $result->withFailedRows(
+        path: 'imports/failed/people-errors.csv',
+        disk: 'imports',
+        downloadName: 'people-errors.csv',
+    );
+
+    expect($result->failedRowsPath)->toBeNull()
+        ->and($resultWithFailedRows->toArray())->toMatchArray([
+            'failedRowsPath' => 'imports/failed/people-errors.csv',
+            'failedRowsDisk' => 'imports',
+            'failedRowsDownloadName' => 'people-errors.csv',
+        ]);
 });
 
 it('keeps custom collection callback return values compatible', function () {

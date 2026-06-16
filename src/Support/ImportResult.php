@@ -13,6 +13,9 @@ class ImportResult
         public readonly int $skipped = 0,
         public readonly int $failed = 0,
         public readonly array $errors = [],
+        public readonly ?string $failedRowsPath = null,
+        public readonly ?string $failedRowsDisk = null,
+        public readonly ?string $failedRowsDownloadName = null,
     ) {}
 
     public static function empty(): self
@@ -34,6 +37,9 @@ class ImportResult
         int $skipped = 0,
         int $failed = 0,
         array $errors = [],
+        ?string $failedRowsPath = null,
+        ?string $failedRowsDisk = null,
+        ?string $failedRowsDownloadName = null,
     ): self {
         return new self(
             created: $created,
@@ -41,11 +47,14 @@ class ImportResult
             skipped: $skipped,
             failed: $failed,
             errors: $errors,
+            failedRowsPath: $failedRowsPath,
+            failedRowsDisk: $failedRowsDisk,
+            failedRowsDownloadName: $failedRowsDownloadName,
         );
     }
 
     /**
-     * @return array{created: int, updated: int, skipped: int, failed: int, errors: list<array<string, mixed>>}
+     * @return array{created: int, updated: int, skipped: int, failed: int, errors: list<array<string, mixed>>, failedRowsPath: ?string, failedRowsDisk: ?string, failedRowsDownloadName: ?string}
      */
     public function toArray(): array
     {
@@ -55,6 +64,9 @@ class ImportResult
             'skipped' => $this->skipped,
             'failed' => $this->failed,
             'errors' => $this->errors,
+            'failedRowsPath' => $this->failedRowsPath,
+            'failedRowsDisk' => $this->failedRowsDisk,
+            'failedRowsDownloadName' => $this->failedRowsDownloadName,
         ];
     }
 
@@ -66,5 +78,22 @@ class ImportResult
     public function hasErrors(): bool
     {
         return $this->failed > 0 || $this->errors !== [];
+    }
+
+    public function withFailedRows(
+        string $path,
+        ?string $disk,
+        string $downloadName,
+    ): self {
+        return new self(
+            created: $this->created,
+            updated: $this->updated,
+            skipped: $this->skipped,
+            failed: $this->failed,
+            errors: $this->errors,
+            failedRowsPath: $path,
+            failedRowsDisk: $disk,
+            failedRowsDownloadName: $downloadName,
+        );
     }
 }
