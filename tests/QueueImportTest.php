@@ -108,7 +108,7 @@ it('dispatches package lifecycle events from built in queued imports', function 
     ]));
 
     $events = $import->registerEvents();
-    $reader = $this->createMock(Reader::class);
+    $reader = $this->createStub(Reader::class);
     $exception = new RuntimeException('Import crashed.');
 
     call_user_func($events[LaravelExcelBeforeImport::class], new LaravelExcelBeforeImport($reader, $import));
